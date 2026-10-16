@@ -4,7 +4,7 @@ from app.database import get_db # type: ignore
 from app.models.user import User
 from app.models.planner import StudyPlan, StudyTopic, Course
 from app.utils.dependencies import get_current_admin
-from app.utils.email import send_email
+from app.utils.email import send_approval_email, send_email
 from app.models.study_material import StudyMaterial # type: ignore
 from app.models.quiz import Quiz, QuizAttempt
 from app.models.event import Event
@@ -12,8 +12,10 @@ from sqlalchemy import func
 from datetime import date
 
 import json
+import logging
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+logger = logging.getLogger(__name__)
 
 # ========== SEND REMINDERS TO ALL STUDENTS ==========
 @router.post("/send-reminders-all")
@@ -261,24 +263,24 @@ async def approve_student(
     student.is_approved = True #type: ignore
     db.commit()
 
+    email_sent = True
     try:
-        await send_email(
-            subject="Your BUK Campus Assistance Account Has Been Approved!",
+        await send_approval_email(
             recipient=student.email, # type: ignore
-            body=f"""
-            <h2>Congratulations {student.full_name}!</h2>
-            <p>Your account has been approved by the administrator.</p>
-            <p>You now have full access to all features.</p>
-            <p><a href="https://your-frontend-url.com/login">Login Now</a></p>
-            """,
+            full_name=student.full_name,
         )
     except Exception:
-        # Approval remains successful even if email delivery fails.
-        pass
+        email_sent = False
+        logger.exception("Student approved but notification email failed for user %s", student.id)
 
     return {
-        "message": f"Student '{student.full_name}' has been approved",
+        "message": (
+            f"Student '{student.full_name}' has been approved"
+            if email_sent
+            else f"Student '{student.full_name}' has been approved, but the notification email could not be sent"
+        ),
         "is_approved": True,
+        "email_sent": email_sent,
     }
 
 

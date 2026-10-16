@@ -37,10 +37,13 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
 2. Deploy the `backend` directory as a Render web service with start command
    `uvicorn main:app --host 0.0.0.0 --port $PORT`. Configure its environment
    variables in Render, including a hosted PostgreSQL `DATABASE_URL`, strong
-   `SECRET_KEY` and `REFRESH_SECRET_KEY`, and:
+   `SECRET_KEY` and `REFRESH_SECRET_KEY`, email SMTP settings (`MAIL_USERNAME`,
+   `MAIL_PASSWORD`, and `MAIL_FROM`), and:
 
    `ALLOWED_ORIGINS=https://your-app.vercel.app,http://localhost:5173,http://127.0.0.1:5173`
 
+   Also set `FRONTEND_URL=https://your-app.vercel.app` so approval and password
+   reset emails link to the deployed frontend, not localhost.
    Add your Vercel custom domain to `ALLOWED_ORIGINS` too, if you use one. The
    backend uses local development origins by default when `ALLOWED_ORIGINS` is
    unset.
@@ -55,3 +58,21 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
    put them in a `VITE_` variable.
 4. Keep local `.env` values separate from Vercel/Render environment settings.
    Vercel embeds `VITE_API_URL` when building, so redeploy after changing it.
+
+## Restore an administrator account
+
+There is intentionally no public admin registration form; public signup creates
+student accounts only. After confirming the intended account exists in the
+correct database, promote it through the database console:
+
+```sql
+UPDATE users
+SET role = 'admin', is_approved = TRUE, is_active = TRUE
+WHERE LOWER(email) = LOWER('your-admin-email@example.com')
+RETURNING id, email, role, is_approved, is_active;
+```
+
+Run this against the Render PostgreSQL database to restore a deployed admin
+account, or your local database to restore a local account. The production and
+local databases do not share accounts automatically. After changing a role,
+sign out and sign back in so the app receives a token with the updated role.

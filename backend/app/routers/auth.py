@@ -15,12 +15,13 @@ from app.utils.auth import (
     ALGORITHM,
 )
 from app.utils.dependencies import get_current_user
-from app.utils.email import send_reset_email
+from app.utils.email import get_frontend_url, send_reset_email
 from datetime import datetime, timedelta
-import os
+import logging
 from jose import jwt, JWTError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 
 class ProfileUpdate(BaseModel):
@@ -55,11 +56,13 @@ async def forgot_password(
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-        await send_reset_email(
-            user.email,
-            f"{frontend_url}/reset-password?token={reset_token}",
-        )
+        try:
+            await send_reset_email(
+                user.email,
+                f"{get_frontend_url()}/reset-password?token={reset_token}",
+            )
+        except Exception:
+            logger.exception("Failed to send password reset email")
 
     return {
         "message": "If an account exists for that email, a password reset link has been sent."

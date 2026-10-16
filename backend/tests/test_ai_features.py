@@ -16,9 +16,10 @@ from app.ai.rag_service import RAGService
 from app.models.faq import FAQ
 from app.models.study_material import StudyMaterial
 from app.models.user import User
-from app.routers import auth, chat, emergency, faqs, materials, planner, quiz
+from app.routers import admin, auth, chat, emergency, faqs, materials, planner, quiz
 from app.schemas.user import UserCreate
 from app.utils.auth import password_validation_errors
+from app.utils.email import send_approval_email
 
 
 class FakeQuery:
@@ -176,6 +177,64 @@ class PasswordStrengthTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIn("at least 12 characters", raised.exception.detail)
+
+
+class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
+    async def test_approval_email_uses_deployed_frontend_url(self):
+        with patch.dict("os.environ", {"FRONTEND_URL": "https://study.example.test/"}), patch(
+            "app.utils.email.send_email", new_callable=AsyncMock
+        ) as send_email:
+            await send_approval_email("student@example.test", "Student Name")
+
+        self.assertIn("https://study.example.test/login", send_email.call_args.kwargs["body"])
+
+    async def test_approve_student_reports_notification_delivery(self):
+        student = SimpleNamespace(
+            id=12,
+            role="student",
+            is_approved=False,
+            email="student@example.test",
+            full_name="Student Name",
+        )
+        query = SimpleNamespace(
+            filter=lambda *conditions: SimpleNamespace(first=lambda: student)
+        )
+        db = SimpleNamespace(query=lambda model: query, commit=lambda: None)
+
+        with patch("app.routers.admin.send_approval_email", new_callable=AsyncMock) as send:
+            result = await admin.approve_student(
+                user_id=12,
+                admin=SimpleNamespace(id=1), #type:ignore
+                db=db, #type:ignore
+            )
+
+        send.assert_awaited_once_with(
+            recipient="student@example.test",
+            full_name="Student Name",
+        )
+        self.assertTrue(student.is_approved)
+        self.assertTrue(result["email_sent"])
+
+    async def test_forgot_password_uses_deployed_frontend_url(self):
+        user = SimpleNamespace(email="student@example.test")
+        query = SimpleNamespace(
+            filter=lambda *conditions: SimpleNamespace(first=lambda: user)
+        )
+        db = SimpleNamespace(query=lambda model: query)
+
+        with patch(
+            "app.routers.auth.get_frontend_url",
+            return_value="https://study.example.test",
+        ), patch(
+            "app.routers.auth.send_reset_email", new_callable=AsyncMock
+        ) as send_email:
+            result = await auth.forgot_password(
+                auth.ForgotPasswordRequest(email="student@example.com"),
+                db=db, #type:ignore
+            )
+
+        self.assertIn("https://study.example.test/reset-password?token=", send_email.call_args.args[1])
+        self.assertIn("password reset link has been sent", result["message"])
 
 
 class CampusFAQChatTests(unittest.TestCase):
