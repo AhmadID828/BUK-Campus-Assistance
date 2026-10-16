@@ -1,0 +1,631 @@
+import asyncio
+import json
+import tempfile
+import unittest
+from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+import httpx
+from fastapi import HTTPException, UploadFile
+
+from app.ai.llm_service import LLMService, _post_json
+from app.ai.campus_qa import answer_campus_question
+from app.ai.rag_service import RAGService
+from app.models.faq import FAQ
+from app.models.study_material import StudyMaterial
+from app.models.user import User
+from app.routers import auth, chat, emergency, faqs, materials, planner, quiz
+from app.schemas.user import UserCreate
+from app.utils.auth import password_validation_errors
+
+
+class FakeQuery:
+    def __init__(self, rows):
+        self.rows = rows
+        self.conditions = ()
+
+    def filter(self, *conditions):
+        self.conditions = conditions
+        return self
+
+    def order_by(self, *expressions):
+        return self
+
+    def first(self):
+        for row in self.rows:
+            if all(
+                getattr(row, condition.left.name)
+                == getattr(condition.right, "value", True)
+                for condition in self.conditions
+            ):
+                return row
+        return None
+
+    def all(self):
+        return [
+            row
+            for row in self.rows
+            if all(
+                getattr(row, condition.left.name)
+                == getattr(condition.right, "value", True)
+                for condition in self.conditions
+            )
+        ]
+
+
+class FakeQuizDB:
+    def __init__(self, material):
+        self.material = material
+        self.saved = []
+
+    def query(self, model):
+        return FakeQuery([self.material] if model is StudyMaterial else [])
+
+    def add(self, row):
+        self.saved.append(row)
+
+    def commit(self):
+        pass
+
+    def refresh(self, row):
+        row.id = 27
+
+
+class FakeEmergencyDB:
+    def __init__(self, students):
+        self.students = students
+
+    def query(self, model):
+        return FakeQuery(self.students if model is User else [])
+
+
+class FakeFAQDB:
+    def __init__(self, faqs):
+        self.faqs = faqs
+
+    def query(self, model):
+        return FakeQuery(self.faqs)
+
+
+class FakeCampusQuery:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def filter(self, *conditions):
+        return self
+
+    def order_by(self, *expressions):
+        return self
+
+    def limit(self, count):
+        return self
+
+    def all(self):
+        return self.rows
+
+
+class FakeCampusDB:
+    def __init__(self, faqs):
+        self.faqs = faqs
+
+    def query(self, model):
+        return FakeCampusQuery(self.faqs if model is FAQ else [])
+
+
+class FakePlannerQuery:
+    def __init__(self, row):
+        self.row = row
+
+    def filter(self, *conditions):
+        return self
+
+    def first(self):
+        return self.row
+
+
+class FakePlannerDB:
+    def __init__(self, course):
+        self.course = course
+        self.saved = []
+
+    def query(self, model):
+        return FakePlannerQuery(self.course if model is planner.Course else None)
+
+    def add(self, row):
+        self.saved.append(row)
+
+    def commit(self):
+        pass
+
+    def refresh(self, row):
+        row.id = 31
+
+
+class PasswordStrengthTests(unittest.TestCase):
+    def test_password_policy_rejects_weak_passwords(self):
+        errors = password_validation_errors("short")
+
+        self.assertIn("at least 12 characters", errors)
+        self.assertIn("one uppercase letter", errors)
+        self.assertIn("one number", errors)
+        self.assertIn("one symbol", errors)
+
+    def test_password_policy_accepts_strong_password(self):
+        self.assertEqual(password_validation_errors("StrongPass123!"), [])
+
+    def test_password_policy_rejects_password_over_bcrypt_byte_limit(self):
+        errors = password_validation_errors("Aa1!" + "é" * 35)
+
+        self.assertIn("no more than 72 UTF-8 bytes", errors)
+
+    def test_registration_rejects_weak_password_before_database_access(self):
+        user_data = UserCreate(
+            full_name="Student Name",
+            email="student@example.com",
+            password="weak",
+            registration_number="BUK/2026/001",
+            faculty="Computing",
+            department="Computer Science",
+            level=100,
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            auth.register(user_data, db=None) #type:ignore[arg-type]
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertIn("at least 12 characters", raised.exception.detail)
+
+
+class CampusFAQChatTests(unittest.TestCase):
+    def test_campus_question_uses_faq_as_ai_context(self):
+        faq = SimpleNamespace(
+            id=6,
+            question="How do I register?",
+            answer="Submit the registration form and await approval.",
+            category="registration",
+            is_active=True,
+        )
+        with patch(
+            "app.ai.campus_qa.generate_answer",
+            return_value="Submit the form and await approval.",
+        ) as generate:
+            answer, sources = answer_campus_question(
+                FakeCampusDB([faq]), #type:ignore
+                "How do I register?",
+                provider="groq",
+            )
+
+        self.assertEqual(answer, "Submit the form and await approval.")
+        self.assertEqual(sources, [{
+            "type": "faq",
+            "id": 6,
+            "question": faq.question,
+        }])
+        self.assertIn(faq.answer, generate.call_args.args[0])
+
+
+class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
+    async def test_add_topic_saves_priority_and_estimated_time(self):
+        course = SimpleNamespace(id=2, user_id=4)
+        db = FakePlannerDB(course)
+
+        result = await planner.add_study_topic(
+            course_id=2,
+            payload={"title": "Recursion", "priority": 1, "estimated_hours": 3},
+            user=SimpleNamespace(id=4), #type:ignore
+            db=db, #type:ignore
+        )
+
+        self.assertEqual(result["topic_id"], 31)
+        self.assertEqual(db.saved[0].title, "Recursion")
+        self.assertEqual(db.saved[0].priority, 1)
+        self.assertEqual(db.saved[0].estimated_hours, 3)
+
+    async def test_add_topic_rejects_out_of_range_study_time(self):
+        course = SimpleNamespace(id=2, user_id=4)
+        with self.assertRaises(HTTPException) as raised:
+            await planner.add_study_topic(
+                course_id=2,
+                payload={"title": "Recursion", "estimated_hours": 20},
+                user=SimpleNamespace(id=4), #type:ignore
+                db=FakePlannerDB(course), #type:ignore
+            )
+
+        self.assertEqual(raised.exception.status_code, 400)
+
+
+class AISourceAndRagTests(unittest.TestCase):
+    def test_provider_http_errors_include_safe_error_details(self):
+        response = SimpleNamespace(
+            status_code=401,
+            reason_phrase="Unauthorized",
+            json=lambda: {"error": {"message": "Invalid API key"}},
+        )
+        request = httpx.Request("POST", "https://api.example.test")
+        status_error = httpx.HTTPStatusError(
+            "Unauthorized",
+            request=request,
+            response=httpx.Response(401, request=request),
+        )
+        response.raise_for_status = lambda: (_ for _ in ()).throw(status_error)
+
+        with patch("app.ai.llm_service.httpx.post", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 401.*Invalid API key"):
+                _post_json("https://api.example.test", {})
+
+    def test_search_with_sources_returns_source_title_and_excerpt(self):
+        document = SimpleNamespace(
+            metadata={"title": "Software Engineering", "subject": "SWE401"},
+            page_content="Software engineering applies systematic methods to software.",
+        )
+        service = RAGService()
+        service.get_user_vectorstore = lambda user_id: SimpleNamespace(  # type: ignore[method-assign]
+            similarity_search=lambda query, k: [document]
+        )
+
+        context, sources = service.search_with_sources(9, "define software engineering", k=1)
+
+        self.assertIn("Software Engineering (SWE401)", context)
+        self.assertEqual(sources, [{
+            "type": "study_material",
+            "title": "Software Engineering",
+            "subject": "SWE401",
+            "excerpt": document.page_content,
+        }])
+
+    def test_user_vectorstores_are_separated(self):
+        service = RAGService()
+        created = []
+
+        def fake_chroma(**kwargs):
+            created.append(kwargs)
+            return kwargs
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("app.ai.rag_service.CHROMA_PATH", Path(directory)), patch(
+                "app.ai.rag_service.Chroma", side_effect=fake_chroma
+            ):
+                service.get_user_vectorstore(11)
+                service.get_user_vectorstore(12)
+
+        self.assertNotEqual(
+            created[0]["persist_directory"],
+            created[1]["persist_directory"],
+        )
+        self.assertNotEqual(created[0]["collection_name"], created[1]["collection_name"])
+
+
+class ChatTests(unittest.TestCase):
+    def test_academic_chat_answers_briefly_without_material_matches(self):
+        with (
+            patch.object(chat.rag_service, "search_with_sources", return_value=("No relevant study materials found.", [])),
+            patch.object(chat.llm_service, "get_response", return_value="Brief answer.") as generate,
+        ):
+            answer, sources = chat.answer_academic_question(
+                SimpleNamespace(id=3, email="student@example.test"),
+                "What is the exam date?",
+                "groq",
+                None,
+            )
+
+        self.assertEqual(answer, "Brief answer.")
+        self.assertEqual(sources, [])
+        generate.assert_called_once()
+        prompt = generate.call_args.kwargs["message"]
+        self.assertIn("general knowledge", prompt)
+        self.assertIn("answer the student's actual question directly", prompt)
+        self.assertIn("Do not refuse", prompt)
+        self.assertNotIn("clearly say the answer is not covered", prompt)
+        self.assertIn("No relevant uploaded study-material context was found.", prompt)
+        self.assertEqual(generate.call_args.kwargs["max_tokens"], 128)
+
+    def test_academic_chat_uses_more_relevant_material_context(self):
+        sources = [{"type": "study_material", "title": "Algorithms"}]
+        with (
+            patch.object(chat.rag_service, "search_with_sources", return_value=("Relevant context", sources)) as search,
+            patch.object(chat.llm_service, "get_response", return_value="Answer") as generate,
+        ):
+            answer, returned_sources = chat.answer_academic_question(
+                SimpleNamespace(id=3, email="student@example.test"),
+                "Explain the topic",
+                "groq",
+                None,
+            )
+
+        self.assertEqual(answer, "Answer")
+        self.assertEqual(returned_sources, sources)
+        self.assertEqual(search.call_args.kwargs["k"], 3)
+        self.assertIn("Relevant context", generate.call_args.kwargs["message"])
+        self.assertIn("no more than 2 short sentences", generate.call_args.kwargs["message"])
+        self.assertEqual(generate.call_args.kwargs["max_tokens"], 128)
+
+    def test_chat_completion_allows_the_requested_answer_length(self):
+        service = LLMService()
+        with patch(
+            "app.ai.llm_service.generate_answer",
+            return_value='{"answer":"A useful answer."}',
+        ) as generate:
+            answer = service.get_response("student", "Question", provider="groq")
+
+        self.assertEqual(answer, "A useful answer.")
+        self.assertEqual(generate.call_args.kwargs["max_tokens"], 256)
+        self.assertNotIn("response_format", generate.call_args.kwargs)
+        self.assertIn("follow the request's scope and style", generate.call_args.args[0])
+        self.assertNotIn("use only the supplied study-material context", generate.call_args.args[0])
+
+    def test_chat_completion_accepts_plain_text_response(self):
+        service = LLMService()
+        with patch(
+            "app.ai.llm_service.generate_answer",
+            return_value="Not found in the uploaded materials.",
+        ) as generate:
+            answer = service.get_response(
+                "student",
+                "Question",
+                provider="groq",
+                max_tokens=128,
+            )
+
+        self.assertEqual(answer, "Not found in the uploaded materials.")
+        self.assertEqual(generate.call_args.kwargs["max_tokens"], 128)
+        self.assertNotIn("response_format", generate.call_args.kwargs)
+
+
+class FAQTests(unittest.IsolatedAsyncioTestCase):
+    async def test_active_faqs_can_be_listed_without_a_user(self):
+        faq = SimpleNamespace(
+            id=1,
+            question="Where is the library?",
+            answer="Check the campus map.",
+            category="navigation",
+            related_location_id=None,
+            is_active=True,
+        )
+
+        result = await faqs.list_faqs(db=FakeFAQDB([faq])) #type:ignore
+
+        self.assertEqual(result["faqs"][0]["question"], faq.question)
+        route = next(route for route in faqs.router.routes if route.path == "/faqs/")
+        self.assertEqual(
+            [dependency.name for dependency in route.dependant.dependencies],
+            ["db"],
+        )
+
+
+class QuizTests(unittest.IsolatedAsyncioTestCase):
+    def test_parse_generated_quiz_accepts_json_fenced_response(self):
+        questions = [
+            {
+                "question": "What does an algorithm define?",
+                "options": {
+                    "A": "A sequence of steps",
+                    "B": "A database",
+                    "C": "A programming language",
+                    "D": "A computer",
+                },
+                "correct_answer": "A",
+                "explanation": "Algorithms describe ordered problem-solving steps.",
+            }
+        ]
+
+        result = quiz.parse_generated_quiz(
+            f"```json\n{json.dumps({'questions': questions})}\n```",
+            expected_count=1,
+        )
+
+        self.assertEqual(result, questions)
+
+    def test_parse_generated_quiz_rejects_incomplete_questions(self):
+        with self.assertRaises(ValueError):
+            quiz.parse_generated_quiz(
+                json.dumps({"questions": [{"question": "Missing options"}]}),
+                expected_count=1,
+            )
+
+    async def test_generate_quiz_saves_questions_for_material_owner(self):
+        material = SimpleNamespace(
+            id=5,
+            owner_id=3,
+            title="Algorithms",
+            subject="CS201",
+            content="Algorithms solve computational problems.",
+        )
+        questions = [
+            {
+                "question": f"Question {index}?",
+                "options": {"A": "One", "B": "Two", "C": "Three", "D": "Four"},
+                "correct_answer": "A",
+                "explanation": "The notes state this.",
+            }
+            for index in range(3)
+        ]
+        db = FakeQuizDB(material)
+
+        with patch(
+            "app.routers.quiz.asyncio.to_thread",
+            new=AsyncMock(return_value=json.dumps({"questions": questions})),
+        ):
+            result = await quiz.generate_quiz(
+                material_id=5,
+                user=SimpleNamespace(id=3), #type:ignore
+                num_questions=3,
+                provider="groq",
+                db=db, #type:ignore
+            )
+
+        self.assertEqual(result["quiz_id"], 27)
+        self.assertEqual(result["num_questions"], 3)
+        self.assertEqual(db.saved[0].owner_id, 3)
+        self.assertEqual(db.saved[0].questions, questions)
+
+    async def test_generate_quiz_rejects_another_users_material(self):
+        material = SimpleNamespace(
+            id=5,
+            owner_id=3,
+            title="Algorithms",
+            subject="CS201",
+            content="Algorithms solve computational problems.",
+        )
+        with patch(
+            "app.routers.quiz.asyncio.to_thread",
+            new=AsyncMock(),
+        ) as generate:
+            with self.assertRaises(HTTPException) as raised:
+                await quiz.generate_quiz(
+                    material_id=5,
+                    user=SimpleNamespace(id=4), #type:ignore
+                    num_questions=3,
+                    provider="groq",
+                    db=FakeQuizDB(material), #type:ignore
+                )
+
+        self.assertEqual(raised.exception.status_code, 404)
+        generate.assert_not_awaited()
+
+    async def test_summarize_material_uses_selected_groq_provider(self):
+        material = SimpleNamespace(
+            id=5,
+            owner_id=3,
+            title="Algorithms",
+            subject="CS201",
+            content="Algorithms solve computational problems.",
+        )
+
+        with patch(
+            "app.routers.materials.asyncio.to_thread",
+            new=AsyncMock(return_value='{"summary":"Algorithms solve problems step by step."}'),
+        ) as generate:
+            result = await materials.summarize_material(
+                material_id=5,
+                provider="groq",
+                user=SimpleNamespace(id=3), #type:ignore
+                db=FakeQuizDB(material), #type:ignore
+            )
+
+        self.assertEqual(result["summary"], "Algorithms solve problems step by step.")
+        self.assertEqual(generate.await_args.kwargs["provider"], "groq") #type:ignore
+        self.assertEqual(generate.await_args.kwargs["timeout"], 120.0) #type:ignore
+        self.assertNotIn("response_format", generate.await_args.kwargs) #type:ignore
+
+    async def test_summarize_material_accepts_plain_text_ai_response(self):
+        material = SimpleNamespace(
+            id=5,
+            owner_id=3,
+            title="Algorithms",
+            subject="CS201",
+            content="Algorithms solve computational problems.",
+        )
+
+        with patch(
+            "app.routers.materials.asyncio.to_thread",
+            new=AsyncMock(return_value="Algorithms solve problems using ordered steps."),
+        ) as generate:
+            result = await materials.summarize_material(
+                material_id=5,
+                provider="groq",
+                user=SimpleNamespace(id=3), #type:ignore
+                db=FakeQuizDB(material), #type:ignore
+            )
+
+        self.assertEqual(result["summary"], "Algorithms solve problems using ordered steps.")
+        self.assertNotIn("response_format", generate.await_args.kwargs) #type:ignore
+        self.assertEqual(generate.await_args.args[2], 260) #type:ignore
+
+    async def test_summarize_material_rejects_unknown_provider(self):
+        material = SimpleNamespace(
+            id=5,
+            owner_id=3,
+            title="Algorithms",
+            subject="CS201",
+            content="Algorithms solve computational problems.",
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            await materials.summarize_material(
+                material_id=5,
+                provider="unknown",
+                user=SimpleNamespace(id=3), #type:ignore
+                db=FakeQuizDB(material), #type:ignore
+            )
+
+        self.assertEqual(raised.exception.status_code, 400)
+
+    def test_scoring_handles_correct_incorrect_and_blank_answers(self):
+        questions = [
+            {"question": "Q1", "options": {}, "correct_answer": "A"},
+            {"question": "Q2", "options": {}, "correct_answer": "B"},
+            {"question": "Q3", "options": {}, "correct_answer": "C"},
+        ]
+
+        correct, score, review = quiz.score_quiz_answers(
+            questions,
+            {"0": "a", "1": "D"},
+        )
+
+        self.assertEqual(correct, 1)
+        self.assertEqual(score, 33.33)
+        self.assertEqual([item["is_correct"] for item in review], [True, False, False])
+
+
+class UploadIndexingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_upload_response_surfaces_rag_indexing_failure(self):
+        class FakeDB:
+            def add(self, material):
+                self.material = material
+
+            def commit(self):
+                pass
+
+            def refresh(self, material):
+                material.id = 44
+
+        with tempfile.TemporaryDirectory() as directory:
+            upload_file = UploadFile(
+                filename="lecture.pdf",
+                file=BytesIO(b"sample pdf bytes"),
+            )
+            with (
+                patch.object(materials, "UPLOAD_DIR", directory),
+                patch.object(materials, "extract_text_from_file", return_value="Lecture text"),
+                patch.object(materials.rag_service, "add_material", side_effect=RuntimeError("index unavailable")),
+                patch.object(materials, "update_search_vector"),
+                self.assertLogs("app.routers.materials", level="ERROR"),
+            ):
+                result = await materials.upload_material(
+                    file=upload_file,
+                    title="Lecture",
+                    subject="CS201",
+                    user=SimpleNamespace(id=2, full_name="Student"), #type:ignore
+                    db=FakeDB(), #type:ignore
+                )
+
+        self.assertFalse(result["rag_indexed"])
+        self.assertIn("AI search indexing failed", result["indexing_warning"])
+
+
+class EmergencyBroadcastTests(unittest.IsolatedAsyncioTestCase):
+    async def test_broadcast_sends_only_to_active_students(self):
+        students = [
+            SimpleNamespace(id=1, role="student", is_active=True, email="active@example.test"),
+            SimpleNamespace(id=2, role="student", is_active=False, email="inactive@example.test"),
+            SimpleNamespace(id=3, role="admin", is_active=True, email="admin@example.test"),
+        ]
+        send_email = AsyncMock()
+
+        with patch.object(emergency, "send_email", send_email):
+            result = await emergency.broadcast_emergency_alert(
+                payload={"title": "Safety alert", "message": "Use the east gate."},
+                admin=SimpleNamespace(id=99), #type:ignore
+                db=FakeEmergencyDB(students), #type:ignore
+            )
+
+        self.assertEqual(result["sent"], 1)
+        self.assertEqual(result["failed"], [])
+        send_email.assert_awaited_once()
+        self.assertEqual(send_email.await_args.kwargs["recipient"], "active@example.test") #type:ignore
+
+
+if __name__ == "__main__":
+    unittest.main()
