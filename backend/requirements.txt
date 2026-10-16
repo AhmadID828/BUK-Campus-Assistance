@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 psycopg2-binary
+psycopg[binary]
 python-dotenv
 langchain
 langchain-community
@@ -19,4 +20,3 @@ python-pptx
 fastapi-mail
 pydantic[email]
 email-validator
-
