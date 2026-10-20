@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { API_BASE_URL } from "../config";
-import {Loader2 } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 import {
   exceedsPasswordByteLimit,
   getPasswordRequirements,
@@ -268,6 +268,13 @@ function Signup() {
               Browse campus FAQs
             </Link>
           </p>
+          <Link
+            to="/locations"
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            <MapPin size={17} />
+            Explore campus locations
+          </Link>
         </div>
       </div>
     </div>

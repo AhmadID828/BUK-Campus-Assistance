@@ -13,7 +13,7 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
 ## Tech Stack
 - **Backend**: Python + FastAPI
 - **AI**: Ollama (Llama 3.2) + LangChain
-- **Frontend**: Next.js + React + Tailwind CSS + Leaflet.js
+- **Frontend**: Vite + React + Tailwind CSS + Leaflet.js
 - **Database**: PostgreSQL
 - **Vector DB**: ChromaDB
 
@@ -31,50 +31,22 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
 
 ## Deploy with Vercel and Render
 
-1. Deploy the `frontend` directory to Vercel. Set the Vercel environment variable
-   `VITE_API_URL` to the public Render backend URL, for example
-   `https://your-api.onrender.com` (no trailing slash), then redeploy the frontend.
-2. Deploy the `backend` directory as a Render web service with start command
-   `uvicorn main:app --host 0.0.0.0 --port $PORT`. Configure its environment
-   variables in Render, including a hosted PostgreSQL `DATABASE_URL`, strong
-   `SECRET_KEY` and `REFRESH_SECRET_KEY`, email SMTP settings (`MAIL_USERNAME`,
-   `MAIL_PASSWORD`, and `MAIL_FROM`), and:
-
-   `ALLOWED_ORIGINS=https://vercel.com/aid-3acb/buk-campus-assistance/CZEc8EfjhZYMjzmWb3nVsfiTrneE,http://localhost:5173,http://127.0.0.1:5173`
-
-   Also set `FRONTEND_URL=https://your-app.vercel.app` so approval and password
-   reset emails link to the deployed frontend, not localhost.
-   Add your Vercel custom domain to `ALLOWED_ORIGINS` too, if you use one. The
-   backend uses local development origins by default when `ALLOWED_ORIGINS` is
-   unset.
-   Set the Render health-check path to `/health`. The backend reports unhealthy
-   when it cannot connect to PostgreSQL, while `/` reports whether it started
-   in healthy or degraded mode.
-3. The backend's SQLAlchemy models define the database schema. On startup,
-   `Base.metadata.create_all()` creates missing tables; it does not migrate
-   existing tables when model definitions change. Local and Render each use
-   the database URL configured for that environment, so their data is separate
-   unless both are deliberately configured to use the same PostgreSQL database.
-4. A Render service cannot use Ollama running on your PC at `localhost:11434`.
-   For deployed text generation, configure a reachable hosted AI provider (for
-   example `LLM_PROVIDER=groq`, `QUIZ_PROVIDER=groq`, and `GROQ_API_KEY` in
-   Render's environment settings). However, material indexing and retrieval
-   still use Ollama embeddings in this codebase; set `OLLAMA_BASE_URL` to a
-   reachable hosted Ollama service for those features, or change the embedding
-   implementation to a hosted embeddings provider. Groq text generation alone
-   does not replace this dependency. Keep provider keys on the backend; never
-   put them in a `VITE_` variable.
-5. Keep local `.env` values separate from Vercel/Render environment settings.
-   Vercel embeds `VITE_API_URL` when building, so redeploy after changing it.
-
-## Copy local campus locations to Render
-
-The local and Render databases are separate. To replace all Render campus
-locations with the 12 locations from the local database, back up the Render
-database first, then run `backend/scripts/replace_online_campus_locations.sql`
-in the Render PostgreSQL query console. This script deletes all existing
-`campus_locations` rows before inserting the local set; it does not copy
-events, FAQs, or emergency contacts.
+1. Deploy the `frontend` directory to Vercel and configure `VITE_API_URL` with
+   the public URL of your backend. The Vercel configuration includes a fallback
+   for client-side routes, so refreshing a page such as `/locations` loads the
+   app rather than returning a 404.
+2. Deploy the `backend` directory to Render with the start command
+   `uvicorn main:app --host 0.0.0.0 --port $PORT`. Configure its database,
+   allowed frontend origins, mail, and AI provider through the hosting
+   dashboard. Keep credentials and private service URLs out of source control.
+   Set the health-check path to `/health`.
+3. Local and hosted environments use their own configured databases. Back up
+   hosted data before making operational changes; schema changes should be
+   applied through a reviewed migration process.
+4. Hosted services cannot access Ollama running on a developer's computer.
+   Configure reachable AI and embedding providers for deployed features. Keep
+   provider keys on the backend, never in frontend build variables.
+5. Vercel embeds `VITE_API_URL` when building, so redeploy after changing it.
 
 ## Approve student registrations
 
@@ -84,20 +56,10 @@ or **Reject** for each registration. Approved students receive access to
 protected study features. The backend sends an approval email when mail
 configuration is available.
 
-## Restore an administrator account
+## Public campus map and FAQ access
 
-There is intentionally no public admin registration form; public signup creates
-student accounts only. After confirming the intended account exists in the
-correct database, promote it through the database console:
-
-```sql
-UPDATE users
-SET role = 'admin', is_approved = TRUE, is_active = TRUE
-WHERE LOWER(email) = LOWER('your-admin-email@example.com')
-RETURNING id, email, role, is_approved, is_active;
-```
-
-Run this against the Render PostgreSQL database to restore a deployed admin
-account, or your local database to restore a local account. The production and
-local databases do not share accounts automatically. After changing a role,
-sign out and sign back in so the app receives a token with the updated role.
+Campus locations are available without signing in at `/locations`; the campus
+map and FAQs are linked from the welcome, login, and signup pages. Students
+register through signup and require administrator approval to access protected
+study features. Administrators can manage approvals and, where authorized,
+create additional administrator accounts from the admin interface.

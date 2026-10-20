@@ -38,6 +38,12 @@ def get_current_admin(user: User = Depends(get_current_user)):
     return user
 
 
+def get_super_admin(user: User = Depends(get_current_admin)) -> User:
+    if (user.email or "").strip().lower() != "admin@buk.edu.ng":
+        raise HTTPException(status_code=403, detail="Only the system administrator can manage administrator accounts")
+    return user
+
+
 def require_approved_user(user: User = Depends(get_current_user)):
     if user.role == "student" and not user.is_approved: # type: ignore
         raise HTTPException(

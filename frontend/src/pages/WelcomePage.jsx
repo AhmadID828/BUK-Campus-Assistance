@@ -43,6 +43,10 @@ export default function WelcomePage() {
           <span className="font-bold tracking-tight">BUK Campus Assistant System</span>
         </Link>
         <nav className="flex items-center gap-3">
+          <Link to="/locations" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 hover:bg-white sm:px-4">
+            <MapPin size={17} />
+            <span className="hidden sm:inline">Campus map</span>
+          </Link>
           <Link to="/faqs" className="hidden items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white sm:flex">
             <HelpCircle size={17} />
             FAQs

@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db # type: ignore
 from app.models.user import User
 from app.models.planner import StudyPlan, StudyTopic, Course
-from app.utils.dependencies import get_current_admin
+from app.utils.dependencies import get_current_admin, get_super_admin
 from app.utils.email import send_approval_email, send_email
+from app.utils.auth import hash_password, password_validation_errors
 from app.models.study_material import StudyMaterial # type: ignore
 from app.models.quiz import Quiz, QuizAttempt
 from app.models.event import Event
+from app.schemas.user import AdminCreate
 from sqlalchemy import func
 from datetime import date
 
@@ -125,7 +127,7 @@ async def get_all_students(
 @router.put("/make-admin/{user_id}")
 async def make_user_admin(
     user_id: int,
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(get_super_admin),
     db: Session = Depends(get_db)
 ):
     user = db.query(User).filter(User.id == user_id).first()
@@ -136,6 +138,49 @@ async def make_user_admin(
     db.commit()
 
     return {"message": f"{user.full_name} is now an admin"}
+
+
+@router.post("/admins", status_code=201)
+async def create_admin_account(
+    payload: AdminCreate,
+    admin: User = Depends(get_super_admin),
+    db: Session = Depends(get_db),
+):
+    password_errors = password_validation_errors(payload.password)
+    if password_errors:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain " + ", ".join(password_errors),
+        )
+
+    email = str(payload.email).strip().lower()
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+    new_admin = User(
+        full_name=payload.full_name.strip(),
+        email=email,
+        password_hash=hash_password(payload.password),
+        registration_number=None,
+        faculty=None,
+        department=None,
+        level=None,
+        role="admin",
+        is_active=True,
+        is_approved=True,
+    )
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+    return {
+        "message": f"Administrator account created for {new_admin.email}",
+        "admin": {
+            "id": new_admin.id,
+            "full_name": new_admin.full_name,
+            "email": new_admin.email,
+            "role": new_admin.role,
+        },
+    }
 
 
 # ========== SYSTEM STATISTICS ==========

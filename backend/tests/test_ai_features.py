@@ -17,8 +17,9 @@ from app.models.faq import FAQ
 from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.routers import admin, auth, chat, emergency, faqs, materials, planner, quiz
-from app.schemas.user import UserCreate
+from app.schemas.user import AdminCreate, UserCreate
 from app.utils.auth import password_validation_errors
+from app.utils.dependencies import get_super_admin
 from app.utils.email import send_approval_email
 
 
@@ -180,6 +181,53 @@ class PasswordStrengthTests(unittest.TestCase):
 
 
 class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
+    def test_only_designated_system_admin_can_manage_admins(self):
+        approved_admin = SimpleNamespace(email="Admin@buk.edu.ng", role="admin")
+        self.assertIs(get_super_admin(approved_admin), approved_admin)
+
+        with self.assertRaises(HTTPException) as raised:
+            get_super_admin(SimpleNamespace(email="other-admin@example.com", role="admin"))
+
+        self.assertEqual(raised.exception.status_code, 403)
+
+    async def test_system_admin_can_create_another_admin(self):
+        created = []
+
+        class AdminQuery:
+            def filter(self, *conditions):
+                return self
+
+            def first(self):
+                return None
+
+        class AdminDB:
+            def query(self, model):
+                return AdminQuery()
+
+            def add(self, user):
+                created.append(user)
+
+            def commit(self):
+                pass
+
+            def refresh(self, user):
+                user.id = 22
+
+        system_admin = SimpleNamespace(email="admin@buk.edu.ng", role="admin")
+        payload = AdminCreate(
+            full_name="Additional Admin",
+            email="New.Admin@example.com",
+            password="StrongPass123!",
+        )
+
+        with patch("app.routers.admin.hash_password", return_value="hashed-password"):
+            result = await admin.create_admin_account(payload, system_admin, AdminDB())
+
+        self.assertEqual(result["admin"]["email"], "new.admin@example.com")
+        self.assertEqual(created[0].role, "admin")
+        self.assertTrue(created[0].is_approved)
+        self.assertTrue(created[0].is_active)
+
     async def test_approval_email_uses_deployed_frontend_url(self):
         with patch.dict("os.environ", {"FRONTEND_URL": "https://study.example.test/"}), patch(
             "app.utils.email.send_email", new_callable=AsyncMock

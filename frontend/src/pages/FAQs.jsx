@@ -95,6 +95,13 @@ function FAQs() {
           Quick answers to common administrative and campus questions
         </p>
         <Link
+          to="/locations"
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+        >
+          <MapPin size={16} />
+          Explore campus map
+        </Link>
+        <Link
           to="/chat"
           className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
         >

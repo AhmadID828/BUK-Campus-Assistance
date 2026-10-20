@@ -134,12 +134,12 @@ const Login = () => {
               AI Study Help
             </p>
           </div>
-          <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur rounded-xl p-3 border border-blue-100 dark:border-gray-700">
+          <Link to="/locations" className="bg-white/70 dark:bg-gray-800/70 backdrop-blur rounded-xl p-3 border border-blue-100 dark:border-gray-700 hover:border-blue-300 hover:bg-white transition">
             <MapPin className="mx-auto text-blue-600 mb-1" size={20} />
             <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Campus Map
+              Explore Campus Map
             </p>
-          </div>
+          </Link>
         </div>
         <Link
           to="/faqs"
