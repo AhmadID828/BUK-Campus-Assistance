@@ -357,6 +357,81 @@ class AISourceAndRagTests(unittest.TestCase):
 
 
 class ChatTests(unittest.TestCase):
+    def test_groq_retries_quiz_json_without_constrained_json_mode(self):
+        first_response = httpx.Response(
+            400,
+            json={"error": {"message": "Failed to generate JSON. Please adjust your prompt."}},
+            request=httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions"),
+        )
+        retry_response = httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {"content": '{"questions": []}'},
+                        "finish_reason": "stop",
+                    }
+                ]
+            },
+            request=httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions"),
+        )
+
+        with (
+            patch("app.ai.llm_service.GROQ_API_KEY", "test-key"),
+            patch(
+                "app.ai.llm_service.httpx.post",
+                side_effect=[first_response, retry_response],
+            ) as post,
+        ):
+            response = generate_answer(
+                "Return a JSON quiz.",
+                provider="groq",
+                response_format="json",
+            )
+
+        self.assertEqual(response, '{"questions": []}')
+        self.assertEqual(post.call_count, 2)
+        retry_payload = post.call_args.kwargs["json"]
+        self.assertNotIn("response_format", retry_payload)
+        self.assertIn("syntactically valid JSON only", retry_payload["messages"][0]["content"])
+
+    def test_groq_completion_hides_reasoning_and_reserves_answer_tokens(self):
+        with (
+            patch("app.ai.llm_service.GROQ_API_KEY", "test-key"),
+            patch(
+                "app.ai.llm_service._post_json",
+                return_value={
+                    "choices": [
+                        {
+                            "message": {"content": "Software engineering is the systematic design and development of software."},
+                            "finish_reason": "stop",
+                        }
+                    ]
+                },
+            ) as post_json,
+        ):
+            answer = generate_answer("What is software engineering?", provider="groq", max_tokens=128)
+
+        self.assertIn("systematic design", answer)
+        payload = post_json.call_args.args[1]
+        self.assertEqual(payload["max_completion_tokens"], 512)
+        self.assertNotIn("max_tokens", payload)
+        self.assertEqual(payload["reasoning_effort"], "low")
+        self.assertEqual(payload["reasoning_format"], "hidden")
+
+    def test_groq_empty_completion_reports_finish_reason(self):
+        with (
+            patch("app.ai.llm_service.GROQ_API_KEY", "test-key"),
+            patch(
+                "app.ai.llm_service._post_json",
+                return_value={
+                    "choices": [{"message": {"content": ""}, "finish_reason": "length"}]
+                },
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "finish reason: length"):
+                generate_answer("Question", provider="groq")
+
     def test_ollama_completion_extracts_labeled_final_answer(self):
         with patch(
             "app.ai.llm_service._post_json",

@@ -39,8 +39,8 @@ from app.routers.faqs import router as faqs_router, admin_router as admin_faqs_r
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="BUK Campus Assistance",
-    description="AI-Powered Study and Campus Assistant for Bayero University Kano Students",
+    title="BUK Campus Assistant System",
+    description="AI-powered study and campus assistance system for Bayero University Kano students",
     version="1.0.0",
 )
 
@@ -86,7 +86,7 @@ app.include_router(admin_faqs_router)
 @app.get("/")
 async def root():
     return {
-        "message": "EduAI Backend is running successfully!",
+        "message": "BUK Campus Assistant System API is running successfully!",
         "status": "healthy" if app.state.db_ready else "degraded",
         "database": {
             "ok": app.state.db_ready,

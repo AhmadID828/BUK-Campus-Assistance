@@ -112,7 +112,7 @@ async def broadcast_emergency_alert(
                 <p style="color: #7f1d1d; font-size: 16px; line-height: 1.6;">{message}</p>
                 <hr style="border-color: #fecaca; margin: 20px 0;">
                 <p style="color: #6b7280; font-size: 14px;">
-                  This is an official alert from <strong>BUK Campus Assistance</strong>.
+                  This is an official alert from <strong>BUK Campus Assistant System</strong>.
                 </p>
               </div>
             </div>

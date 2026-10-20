@@ -124,7 +124,7 @@ const AdminDashboard = () => {
           Admin Dashboard
         </h1>
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-          Overview of the BUK Campus Assistance system
+          Overview of the BUK Campus Assistant System
         </p>
       </div>
 

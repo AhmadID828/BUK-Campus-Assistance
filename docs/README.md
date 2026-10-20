@@ -1,4 +1,4 @@
-# EduAI - AI-Powered Study and Campus Assistant
+# BUK Campus Assistant System
 
 A final year project for Bayero University Kano (BUK) that combines intelligent academic support with campus information and location assistance.
 

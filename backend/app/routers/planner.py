@@ -700,14 +700,14 @@ async def send_daily_reminder(
         weak_html += "</ul>"
 
     email_body = f"""
-    <h2>BUK Campus Assistance - Daily Study Reminder</h2>
+    <h2>BUK Campus Assistant System - Daily Study Reminder</h2>
     <p>Hello {user.full_name},</p>
     <p>Here is your study plan for <b>{today}</b>:</p>
     {tasks_html}
     {weak_html}
     <br>
     <p>Stay consistent. You’ve got this!</p>
-    <p>— BUK Campus Assistance</p>
+    <p>— BUK Campus Assistant System</p>
     """
 
     try:

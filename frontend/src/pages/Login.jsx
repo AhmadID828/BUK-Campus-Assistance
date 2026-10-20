@@ -57,7 +57,7 @@ const Login = () => {
             <BookOpen size={32} />
           </div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
-            BUK EduAI Study Assistant
+            BUK Campus Assistant System
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
             AI study and campus companion

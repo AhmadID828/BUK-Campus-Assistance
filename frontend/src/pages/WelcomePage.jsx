@@ -36,11 +36,11 @@ export default function WelcomePage() {
   return (
     <main className="min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-indigo-100 text-slate-800">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
-        <Link to="/" className="flex items-center gap-3" aria-label="BUK EduAI home">
+        <Link to="/" className="flex items-center gap-3" aria-label="BUK Campus Assistant System home">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
             <BookOpen size={22} />
           </span>
-          <span className="font-bold tracking-tight">BUK EduAI</span>
+          <span className="font-bold tracking-tight">BUK Campus Assistant System</span>
         </Link>
         <nav className="flex items-center gap-3">
           <Link to="/faqs" className="hidden items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white sm:flex">

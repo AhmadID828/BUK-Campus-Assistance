@@ -61,7 +61,7 @@ async def send_approval_email(recipient: str, full_name: str) -> None:
     login_link = html.escape(f"{get_frontend_url()}/login", quote=True)
     await send_email(
         recipient=recipient,
-        subject="Your BUK Campus Assistance Account Has Been Approved!",
+        subject="Your BUK Campus Assistant System Account Has Been Approved!",
         body=f"""
         <h2>Congratulations {safe_name}!</h2>
         <p>Your account has been approved by the administrator.</p>
@@ -69,4 +69,3 @@ async def send_approval_email(recipient: str, full_name: str) -> None:
         <p><a href="{login_link}">Login Now</a></p>
         """,
     )
-

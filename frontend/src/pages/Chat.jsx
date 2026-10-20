@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Plus,
   Square,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { API_BASE_URL } from "../config";
@@ -19,7 +20,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Hello! I’m your Smart BUK Assistant. Ask me anything about your courses or campus (locations, FAQs, emergencies, events).",
+      content: "Hello! I’m the BUK Campus Assistant System. Ask me anything about your courses or campus (locations, FAQs, emergencies, events).",
     },
   ]);
   const [input, setInput] = useState("");
@@ -70,7 +71,7 @@ export default function Chat() {
     setMessages([
       {
         role: "assistant",
-        content: "Hello! I’m your Smart BUK Assistant. Ask me anything about your courses or campus (locations, FAQs, emergencies, events).",
+        content: "Hello! I’m the BUK Campus Assistant System. Ask me anything about your courses or campus (locations, FAQs, emergencies, events).",
       },
     ]);
     setShowRecent(false);
@@ -277,9 +278,16 @@ export default function Chat() {
 
               {/* Sources */}
               {msg.sources && msg.sources.length > 0 && (
-                <div className="mt-3 border-t border-blue-100 pt-2 text-xs text-slate-600">
-                  <p className="mb-1 font-semibold text-blue-700">Retrieved study material</p>
-                  <ul className="space-y-2">
+                <details className="group mt-3 border-t border-blue-100 pt-2 text-xs text-slate-600">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-medium text-blue-700 hover:text-blue-800">
+                    <span>View retrieved study material ({msg.sources.length})</span>
+                    <ChevronDown
+                      size={15}
+                      className="shrink-0 transition-transform group-open:rotate-180"
+                      aria-hidden="true"
+                    />
+                  </summary>
+                  <ul className="mt-2 space-y-2">
                     {msg.sources.map((source, sourceIndex) => (
                       <li key={`${source.title || source.name || source.type}-${sourceIndex}`}>
                         <p className="font-medium text-slate-700">
@@ -292,7 +300,7 @@ export default function Chat() {
                       </li>
                     ))}
                   </ul>
-                </div>
+                </details>
               )}
             </div>
 

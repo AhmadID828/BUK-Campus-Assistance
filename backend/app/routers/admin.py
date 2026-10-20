@@ -67,12 +67,12 @@ async def send_reminders_to_all_students(
                     tasks_html += "</ul>"
 
             email_body = f"""
-            <h2>BUK Campus Assistance - Daily Reminder</h2>
+            <h2>BUK Campus Assistant System - Daily Reminder</h2>
             <p>Hello {student.full_name},</p>
             <p>Here is your study plan for <b>{today}</b>:</p>
             {tasks_html}
             <p>Stay focused!</p>
-            <p>— BUK Campus Assistance Team</p>
+            <p>— BUK Campus Assistant System Team</p>
             """
 
             await send_email(

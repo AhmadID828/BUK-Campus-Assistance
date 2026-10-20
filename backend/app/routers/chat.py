@@ -87,7 +87,7 @@ def answer_academic_question(
         question,
         k=3,
     )  # type: ignore[arg-type]
-    prompt = f"""You are BUK Campus Assistance, a helpful academic assistant for Bayero University Kano students.
+    prompt = f"""You are the BUK Campus Assistant System, a helpful academic assistant for Bayero University Kano students.
 First use the uploaded study-material context below to answer the question.
     If the context does not contain the answer, answer the student's actual question directly using your general knowledge.
     Do not refuse, give a canned "not found" reply, or add a disclaimer just because the materials do not cover it.

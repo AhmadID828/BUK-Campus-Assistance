@@ -29,6 +29,42 @@ def _post_json(
     timeout: float = 240.0,
 ) -> dict[str, Any]:
     response = httpx.post(url, headers=headers, json=payload, timeout=timeout)
+    if (
+        response.status_code == 400
+        and url == "https://api.groq.com/openai/v1/chat/completions"
+        and payload.get("response_format") == {"type": "json_object"}
+    ):
+        try:
+            error_payload = response.json().get("error")
+            provider_message = (
+                error_payload.get("message") if isinstance(error_payload, dict) else error_payload
+            )
+        except (ValueError, AttributeError):
+            provider_message = None
+
+        if isinstance(provider_message, str) and "failed to generate json" in provider_message.lower():
+            fallback_payload = dict(payload)
+            fallback_payload.pop("response_format", None)
+            messages = fallback_payload.get("messages")
+            if isinstance(messages, list) and messages and isinstance(messages[0], dict):
+                fallback_payload["messages"] = [
+                    {
+                        **messages[0],
+                        "content": (
+                            f"{messages[0].get('content', '')}\n\n"
+                            "Return syntactically valid JSON only. Do not include Markdown "
+                            "or any text before or after the JSON object."
+                        ),
+                    },
+                    *messages[1:],
+                ]
+            response = httpx.post(
+                url,
+                headers=headers,
+                json=fallback_payload,
+                timeout=timeout,
+            )
+
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
@@ -104,19 +140,20 @@ def generate_answer(
         if not GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY is required when LLM_PROVIDER=groq")
 
+        groq_payload: dict[str, Any] = {
+            "model": model or GROQ_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_completion_tokens": max(max_tokens, 512),
+            "temperature": 0.3,
+            "reasoning_effort": "low",
+            "reasoning_format": "hidden",
+        }
+        if response_format == "json":
+            groq_payload["response_format"] = {"type": "json_object"}
+
         data = _post_json(
             "https://api.groq.com/openai/v1/chat/completions",
-            {
-                "model": model or GROQ_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens,
-                "temperature": 0.3,
-                **(
-                    {"response_format": {"type": "json_object"}}
-                    if response_format == "json"
-                    else {}
-                ),
-            },
+            groq_payload,
             headers={
                 "Authorization": f"Bearer {GROQ_API_KEY}",
                 "Content-Type": "application/json",
@@ -124,7 +161,10 @@ def generate_answer(
             timeout=timeout,
         )
         choices = data.get("choices")
-        content = choices[0].get("message", {}).get("content") if isinstance(choices, list) and choices else None
+        first_choice = choices[0] if isinstance(choices, list) and choices else None
+        message_data = first_choice.get("message") if isinstance(first_choice, dict) else None
+        content = message_data.get("content") if isinstance(message_data, dict) else None
+        finish_reason = first_choice.get("finish_reason") if isinstance(first_choice, dict) else None
     else:
         ollama_model = model or OLLAMA_MODEL
         ollama_prompt = prompt
@@ -151,8 +191,13 @@ def generate_answer(
             timeout=timeout,
         )
         content = data.get("response")
+        finish_reason = None
 
     if not isinstance(content, str) or not content.strip():
+        if selected_provider == "groq" and isinstance(finish_reason, str):
+            raise RuntimeError(
+                f"Groq returned no answer text (finish reason: {finish_reason})"
+            )
         raise RuntimeError("LLM provider returned an empty response")
     cleaned_content = clean_model_response(content)
     if selected_provider == "ollama" and response_format is None:
@@ -182,7 +227,7 @@ class LLMService:
             for item in history
         ]
 
-        system_prompt = """You are BUK Campus Assistance. Answer accurately, follow the request's scope and style, and keep answers concise unless asked for detail. If unsure about current BUK-specific information, advise checking the official portal. Return a plain-text answer without JSON or Markdown formatting."""
+        system_prompt = """You are the BUK Campus Assistant System. Answer accurately, follow the request's scope and style, and keep answers concise unless asked for detail. If unsure about current BUK-specific information, advise checking the official portal. Return a plain-text answer without JSON or Markdown formatting."""
         current_message = {"role": "user", "content": message}
         conversation = "\n\n".join(
             f"{item['role'].title()}: {item['content']}"
