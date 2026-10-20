@@ -19,7 +19,7 @@ from app.models.user import User
 from app.routers import admin, auth, chat, emergency, faqs, materials, planner, quiz
 from app.schemas.user import AdminCreate, UserCreate
 from app.utils.auth import password_validation_errors
-from app.utils.dependencies import get_super_admin
+from app.utils.dependencies import get_current_user, get_super_admin
 from app.utils.email import send_approval_email
 
 
@@ -227,6 +227,65 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(created[0].role, "admin")
         self.assertTrue(created[0].is_approved)
         self.assertTrue(created[0].is_active)
+
+    async def test_system_admin_can_remove_and_reactivate_an_admin(self):
+        additional_admin = SimpleNamespace(
+            id=22,
+            full_name="Additional Admin",
+            email="additional@example.test",
+            role="admin",
+            is_active=True,
+        )
+        query = FakeQuery([additional_admin])
+        commits = []
+        db = SimpleNamespace(
+            query=lambda model: query,
+            commit=lambda: commits.append(True),
+        )
+        chief_admin = SimpleNamespace(email="admin@buk.edu.ng", role="admin")
+
+        result = await admin.remove_admin_account(22, chief_admin, db) # type: ignore[arg-type]
+
+        self.assertFalse(additional_admin.is_active)
+        self.assertEqual(len(commits), 1)
+        self.assertIn("records were retained", result["message"])
+
+        await admin.reactivate_admin_account(22, chief_admin, db) # type: ignore[arg-type]
+
+        self.assertTrue(additional_admin.is_active)
+        self.assertEqual(len(commits), 2)
+
+    async def test_chief_admin_cannot_remove_own_account(self):
+        chief_admin = SimpleNamespace(
+            id=1,
+            email="Admin@buk.edu.ng",
+            role="admin",
+            is_active=True,
+        )
+        query = FakeQuery([chief_admin])
+        db = SimpleNamespace(query=lambda model: query, commit=lambda: None)
+
+        with self.assertRaises(HTTPException) as raised:
+            await admin.remove_admin_account(1, chief_admin, db) # type: ignore[arg-type]
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertTrue(chief_admin.is_active)
+
+    def test_deactivated_account_is_rejected_even_with_existing_token(self):
+        inactive_user = SimpleNamespace(
+            email="removed-admin@example.test",
+            is_active=False,
+        )
+        db = SimpleNamespace(query=lambda model: FakeQuery([inactive_user]))
+
+        with patch(
+            "app.utils.dependencies.jwt.decode",
+            return_value={"sub": inactive_user.email},
+        ):
+            with self.assertRaises(HTTPException) as raised:
+                get_current_user("Bearer token", db) # type: ignore[arg-type]
+
+        self.assertEqual(raised.exception.status_code, 403)
 
     async def test_approval_email_uses_deployed_frontend_url(self):
         with patch.dict("os.environ", {"FRONTEND_URL": "https://study.example.test/"}), patch(

@@ -183,6 +183,75 @@ async def create_admin_account(
     }
 
 
+@router.get("/admins")
+async def list_admin_accounts(
+    admin: User = Depends(get_super_admin),
+    db: Session = Depends(get_db),
+):
+    admins = db.query(User).filter(User.role == "admin").order_by(User.id).all()
+    return {
+        "admins": [
+            {
+                "id": account.id,
+                "full_name": account.full_name,
+                "email": account.email,
+                "is_active": account.is_active is not False,
+            }
+            for account in admins
+        ]
+    }
+
+
+@router.delete("/admins/{user_id}")
+async def remove_admin_account(
+    user_id: int,
+    admin: User = Depends(get_super_admin),
+    db: Session = Depends(get_db),
+):
+    account = db.query(User).filter(
+        User.id == user_id,
+        User.role == "admin",
+    ).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Administrator not found")
+
+    if (account.email or "").strip().lower() == "admin@buk.edu.ng":
+        raise HTTPException(
+            status_code=400,
+            detail="The chief administrator account cannot be removed",
+        )
+
+    account.is_active = False
+    db.commit()
+    return {
+        "message": "Administrator access removed. The account and its records were retained."
+    }
+
+
+@router.post("/admins/{user_id}/reactivate")
+async def reactivate_admin_account(
+    user_id: int,
+    admin: User = Depends(get_super_admin),
+    db: Session = Depends(get_db),
+):
+    account = db.query(User).filter(
+        User.id == user_id,
+        User.role == "admin",
+    ).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Administrator not found")
+
+    if (account.email or "").strip().lower() == "admin@buk.edu.ng":
+        raise HTTPException(
+            status_code=400,
+            detail="The chief administrator account is already protected",
+        )
+
+    account.is_active = True
+    db.commit()
+    return {"message": "Administrator account reactivated."}
+
+
 # ========== SYSTEM STATISTICS ==========
 @router.get("/statistics")
 async def get_system_statistics(

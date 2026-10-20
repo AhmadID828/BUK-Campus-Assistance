@@ -62,4 +62,7 @@ Campus locations are available without signing in at `/locations`; the campus
 map and FAQs are linked from the welcome, login, and signup pages. Students
 register through signup and require administrator approval to access protected
 study features. Administrators can manage approvals and, where authorized,
-create additional administrator accounts from the admin interface.
+create additional administrator accounts from the admin interface. The chief
+administrator can remove another administrator's access or restore it later;
+the account's existing records are retained. The chief administrator account
+cannot be removed through the application.
