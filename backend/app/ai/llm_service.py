@@ -79,6 +79,15 @@ def clean_model_response(content: str) -> str:
     return cleaned.strip()
 
 
+def extract_final_answer(content: str) -> str:
+    """Extract the final answer from model output that includes reasoning labels."""
+    cleaned = clean_model_response(content)
+    match = re.search(r"(?is)(?:final answer|answer)\s*[:\-]\s*(.+)", cleaned)
+    if match:
+        return match.group(1).strip()
+    return cleaned
+
+
 def generate_answer(
     prompt: str,
     max_tokens: int = 160,

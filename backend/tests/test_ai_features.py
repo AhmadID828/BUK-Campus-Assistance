@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from fastapi import HTTPException, UploadFile
 
-from app.ai.llm_service import LLMService, _post_json
+from app.ai.llm_service import LLMService, _post_json, generate_answer
 from app.ai.campus_qa import answer_campus_question
 from app.ai.rag_service import RAGService
 from app.models.faq import FAQ
@@ -357,6 +357,15 @@ class AISourceAndRagTests(unittest.TestCase):
 
 
 class ChatTests(unittest.TestCase):
+    def test_ollama_completion_extracts_labeled_final_answer(self):
+        with patch(
+            "app.ai.llm_service._post_json",
+            return_value={"response": "<think>internal reasoning</think>Final Answer: concise response"},
+        ):
+            answer = generate_answer("Question", provider="ollama")
+
+        self.assertEqual(answer, "concise response")
+
     def test_academic_chat_answers_briefly_without_material_matches(self):
         with (
             patch.object(chat.rag_service, "search_with_sources", return_value=("No relevant study materials found.", [])),
