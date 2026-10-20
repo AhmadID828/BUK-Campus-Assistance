@@ -19,7 +19,7 @@ const ProtectedRoute = ({
   }
 
   if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={requireAdmin ? "/admin/login" : "/login"} replace />;
   }
 
   if (requireAdmin && !isAdmin) {
@@ -60,4 +60,3 @@ const ProtectedRoute = ({
 };
 
 export default ProtectedRoute;
-

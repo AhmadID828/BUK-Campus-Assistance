@@ -32,8 +32,9 @@ const AdminLayout = () => {
     { name: "Emergency Contacts", path: "/admin/emergency", icon: Phone },
     { name: "Events", path: "/admin/events", icon: Calendar },
     { name: "FAQs", path: "/admin/faqs", icon: HelpCircle },
+    { name: "Campus FAQs", path: "/admin/campus-faqs", icon: HelpCircle },
     ...(user?.email?.trim().toLowerCase() === "admin@buk.edu.ng"
-      ? [{ name: "Manage Admins", path: "/admin/admins", icon: UserPlus }]
+      ? [{ name: "Register Admin", path: "/admin/register", icon: UserPlus }]
       : []),
   ];
 

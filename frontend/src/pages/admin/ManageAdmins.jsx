@@ -141,7 +141,7 @@ export default function ManageAdmins() {
           Restricted system administration
         </p>
         <h1 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">
-          Add an administrator
+          Register and manage administrators
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-300">
           Create administrator accounts for trusted staff. Only the system

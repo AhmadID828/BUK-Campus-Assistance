@@ -9,6 +9,7 @@ import EventsPage from "./pages/EventsPage";
 import FAQs from "./pages/FAQs";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
+import AdminLogin from "./pages/AdminLogin";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import MapPage from "./pages/MapPage";
@@ -36,6 +37,7 @@ function App() {
         <Routes>
           <Route path="/" element={<WelcomePage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />
@@ -69,6 +71,8 @@ function App() {
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/students" element={<StudentsPage />} />
             <Route path="/admin/admins" element={<ManageAdmins />} />
+            <Route path="/admin/register" element={<ManageAdmins />} />
+            <Route path="/admin/campus-faqs" element={<FAQs />} />
             <Route path="/admin/pending" element={<PendingApprovals />} />
             <Route path="/admin/statistics" element={<StatisticsPage />} />
             <Route path="/admin/locations" element={<ManageLocations />} />

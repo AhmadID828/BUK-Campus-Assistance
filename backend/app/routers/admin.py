@@ -154,7 +154,7 @@ async def create_admin_account(
         )
 
     email = str(payload.email).strip().lower()
-    if db.query(User).filter(User.email == email).first():
+    if db.query(User).filter(func.lower(User.email) == email).first():
         raise HTTPException(status_code=409, detail="An account with this email already exists")
 
     new_admin = User(

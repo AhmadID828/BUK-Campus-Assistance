@@ -266,6 +266,35 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(created[0].is_approved)
         self.assertTrue(created[0].is_active)
 
+    async def test_admin_registration_rejects_case_variant_duplicate_email(self):
+        existing_admin = SimpleNamespace(email="Admin@buk.edu.ng")
+
+        class ExistingAdminQuery:
+            def filter(self, condition):
+                self.condition = condition
+                return self
+
+            def first(self):
+                return existing_admin
+
+        query = ExistingAdminQuery()
+        db = SimpleNamespace(query=lambda model: query)
+        payload = AdminCreate(
+            full_name="Duplicate Chief Admin",
+            email="ADMIN@buk.edu.ng",
+            password="StrongPass123!",
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            await admin.create_admin_account(
+                payload,
+                SimpleNamespace(email="admin@buk.edu.ng", role="admin"),
+                db, # type: ignore[arg-type]
+            )
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("lower(users.email)", str(query.condition).lower())
+
     async def test_system_admin_can_remove_and_reactivate_an_admin(self):
         additional_admin = SimpleNamespace(
             id=22,

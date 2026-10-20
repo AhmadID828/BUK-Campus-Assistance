@@ -6,9 +6,11 @@ import {
   ChevronUp,
   MapPin,
   MessageCircle,
+  ArrowLeft,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config";
+import { useAuth } from "../context/AuthContext";
 
 const fallbackFaqs = [
   {
@@ -32,6 +34,9 @@ const fallbackFaqs = [
 ];
 
 function FAQs() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isLoggedIn, isAdmin } = useAuth();
   const [faqs, setFaqs] = useState(fallbackFaqs);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -83,10 +88,27 @@ function FAQs() {
     setOpenId((currentId) => (currentId === id ? null : id));
   };
 
+  const goBack = () => {
+    if (location.key !== "default") {
+      navigate(-1);
+      return;
+    }
+
+    navigate(isLoggedIn ? (isAdmin ? "/admin" : "/dashboard") : "/");
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 pb-24">
       {/* Header */}
       <div className="mb-6">
+        <button
+          type="button"
+          onClick={goBack}
+          className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700"
+        >
+          <ArrowLeft size={18} />
+          Back
+        </button>
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
           <HelpCircle className="text-blue-600" size={26} />
           Campus FAQs
@@ -195,7 +217,7 @@ function FAQs() {
 
                     {faq.related_location_id && (
                       <Link
-                        to="/campus-map"
+                        to="/locations"
                         className="inline-flex items-center gap-1.5 mt-3 text-xs font-medium text-blue-600 hover:underline"
                       >
                         <MapPin size={13} />

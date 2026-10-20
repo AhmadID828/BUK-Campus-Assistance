@@ -56,13 +56,26 @@ or **Reject** for each registration. Approved students receive access to
 protected study features. The backend sends an approval email when mail
 configuration is available.
 
+## Administrator access
+
+Administrators can sign in at `/admin/login`. Admin registration is intentionally
+not public: only the signed-in chief administrator can register additional
+administrators at `/admin/register`. Administrators can review student requests
+from **Pending Approvals**.
+
 ## Public campus map and FAQ access
 
 Campus locations are available without signing in at `/locations`; the campus
-map and FAQs are linked from the welcome, login, and signup pages. Students
-register through signup and require administrator approval to access protected
-study features. Administrators can manage approvals and, where authorized,
-create additional administrator accounts from the admin interface. The chief
+map and FAQs are linked from the welcome, login, signup, and authenticated
+navigation. The FAQ page includes a back button to return to the previous page.
+Students register through signup and require administrator approval to access
+protected study features. Administrators can manage approvals and, where
+authorized, create additional administrator accounts from the admin interface. The chief
 administrator can remove another administrator's access or restore it later;
 the account's existing records are retained. The chief administrator account
 cannot be removed through the application.
+
+The optional [campus-location replacement script](../backend/scripts/replace_online_campus_locations.sql)
+deletes every existing row in `campus_locations` before inserting the listed
+locations. Back up the target database and review the rows before running it;
+the transaction does not preserve deleted data after it commits.
