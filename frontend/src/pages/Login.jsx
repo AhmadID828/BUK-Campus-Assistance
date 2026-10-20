@@ -32,6 +32,15 @@ const Login = () => {
         throw new Error(data.detail || "Login failed");
       }
 
+      if (
+        email.trim().toLowerCase() === "admin@buk.edu.ng" &&
+        data.user?.role !== "admin"
+      ) {
+        throw new Error(
+          "This account is not configured as an administrator. Please contact the system administrator to restore its admin access."
+        );
+      }
+
       if (data.refresh_token) {
         localStorage.setItem("refresh_token", data.refresh_token);
       }

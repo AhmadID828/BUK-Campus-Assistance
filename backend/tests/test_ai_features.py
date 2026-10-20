@@ -17,7 +17,7 @@ from app.models.faq import FAQ
 from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.routers import admin, auth, chat, emergency, faqs, materials, planner, quiz
-from app.schemas.user import AdminCreate, UserCreate
+from app.schemas.user import AdminCreate, UserCreate, UserLogin
 from app.utils.auth import password_validation_errors
 from app.utils.dependencies import get_current_user, get_super_admin
 from app.utils.email import send_approval_email
@@ -181,6 +181,44 @@ class PasswordStrengthTests(unittest.TestCase):
 
 
 class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
+    def test_login_finds_existing_admin_email_without_case_sensitivity(self):
+        account = SimpleNamespace(
+            id=1,
+            full_name="Chief Administrator",
+            email="Admin@buk.edu.ng",
+            password_hash="stored-hash",
+            registration_number=None,
+            faculty=None,
+            role="admin",
+            is_approved=True,
+            is_active=True,
+            department=None,
+            level=None,
+        )
+
+        class LoginQuery:
+            condition = None
+
+            def filter(self, condition):
+                self.condition = condition
+                return self
+
+            def first(self):
+                return account
+
+        query = LoginQuery()
+        db = SimpleNamespace(query=lambda model: query)
+        credentials = UserLogin(email="admin@buk.edu.ng", password="ValidPass123!")
+
+        with patch("app.routers.auth.verify_password", return_value=True), patch(
+            "app.routers.auth.create_access_token", return_value="access"
+        ), patch("app.routers.auth.create_refresh_token", return_value="refresh"):
+            response = auth.login(credentials, db) # type: ignore[arg-type]
+
+        self.assertIn("lower(users.email)", str(query.condition).lower())
+        self.assertEqual(response["user"]["email"], "Admin@buk.edu.ng")
+        self.assertEqual(response["user"]["role"], "admin")
+
     def test_only_designated_system_admin_can_manage_admins(self):
         approved_admin = SimpleNamespace(email="Admin@buk.edu.ng", role="admin")
         self.assertIs(get_super_admin(approved_admin), approved_admin)
