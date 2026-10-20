@@ -40,14 +40,22 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
    `SECRET_KEY` and `REFRESH_SECRET_KEY`, email SMTP settings (`MAIL_USERNAME`,
    `MAIL_PASSWORD`, and `MAIL_FROM`), and:
 
-   `ALLOWED_ORIGINS=https://your-app.vercel.app,http://localhost:5173,http://127.0.0.1:5173`
+   `ALLOWED_ORIGINS=https://vercel.com/aid-3acb/buk-campus-assistance/CZEc8EfjhZYMjzmWb3nVsfiTrneE,http://localhost:5173,http://127.0.0.1:5173`
 
    Also set `FRONTEND_URL=https://your-app.vercel.app` so approval and password
    reset emails link to the deployed frontend, not localhost.
    Add your Vercel custom domain to `ALLOWED_ORIGINS` too, if you use one. The
    backend uses local development origins by default when `ALLOWED_ORIGINS` is
    unset.
-3. A Render service cannot use Ollama running on your PC at `localhost:11434`.
+   Set the Render health-check path to `/health`. The backend reports unhealthy
+   when it cannot connect to PostgreSQL, while `/` reports whether it started
+   in healthy or degraded mode.
+3. The backend's SQLAlchemy models define the database schema. On startup,
+   `Base.metadata.create_all()` creates missing tables; it does not migrate
+   existing tables when model definitions change. Local and Render each use
+   the database URL configured for that environment, so their data is separate
+   unless both are deliberately configured to use the same PostgreSQL database.
+4. A Render service cannot use Ollama running on your PC at `localhost:11434`.
    For deployed text generation, configure a reachable hosted AI provider (for
    example `LLM_PROVIDER=groq`, `QUIZ_PROVIDER=groq`, and `GROQ_API_KEY` in
    Render's environment settings). However, material indexing and retrieval
@@ -56,7 +64,7 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
    implementation to a hosted embeddings provider. Groq text generation alone
    does not replace this dependency. Keep provider keys on the backend; never
    put them in a `VITE_` variable.
-4. Keep local `.env` values separate from Vercel/Render environment settings.
+5. Keep local `.env` values separate from Vercel/Render environment settings.
    Vercel embeds `VITE_API_URL` when building, so redeploy after changing it.
 
 ## Restore an administrator account

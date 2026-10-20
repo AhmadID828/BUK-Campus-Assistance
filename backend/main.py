@@ -1,11 +1,16 @@
 
 import os
+import logging
 
-from app.models.base import Base
-from fastapi import FastAPI
+import httpx
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from app.database import engine, Base
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.database import engine
+from app.models.base import Base
 from app.ai.llm_service import llm_service
 
 # Import all models so tables are created
@@ -28,16 +33,21 @@ from app.routers.planner import router as planner_router
 from app.routers.admin import router as admin_router
 from app.routers.campus import router as campus_router
 from app.routers.events import router as events_router
-from app.routers.emergency import router as emergency_router # type: ignore
+from app.routers.emergency import router as emergency_router
 from app.routers.faqs import router as faqs_router, admin_router as admin_faqs_router
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="BUK Campus Assistance",
     description="AI-Powered Study and Campus Assistant for Bayero University Kano Students",
     version="1.0.0",
 )
+
+
+class ChatRequest(BaseModel):
+    message: str
+
 
 allowed_origins = [
     origin.strip().rstrip("/")
@@ -77,22 +87,57 @@ app.include_router(admin_faqs_router)
 async def root():
     return {
         "message": "EduAI Backend is running successfully!",
-        "status": "healthy",
+        "status": "healthy" if app.state.db_ready else "degraded",
+        "database": {
+            "ok": app.state.db_ready,
+            "detail": (
+                "Database tables are available."
+                if app.state.db_ready
+                else "Database initialization failed; database-backed features may be unavailable."
+            ),
+        },
     }
 
 
+@app.get("/health")
+def health():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        app.state.db_ready = False
+        logger.warning("Database health check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Database is unavailable")
+    app.state.db_ready = True
+    return {"status": "healthy"}
+
+
 @app.post("/api/chat")
-async def chat(message: dict):
-    prompt = message.get("message", "")
+async def chat(payload: ChatRequest):
+    prompt = payload.message.strip()
     if not prompt:
-        return {"error": "Message is required"}
-    response = llm_service.get_response("default_user", prompt)
+        raise HTTPException(status_code=422, detail="Message is required")
+    try:
+        response = llm_service.get_response("default_user", prompt)
+    except (httpx.HTTPError, RuntimeError) as exc:
+        logger.exception("Chat generation failed")
+        raise HTTPException(
+            status_code=502,
+            detail="The AI service is unavailable. Please try again.",
+        ) from exc
     return {"response": response}
 
 
-# Create tables on startup (development)
-Base.metadata.create_all(bind=engine)
+# Create missing tables without preventing the service from starting if the database is unavailable.
+try:
+    Base.metadata.create_all(bind=engine)
+    app.state.db_ready = True
+    logger.info("Database tables created successfully.")
+except SQLAlchemyError:
+    app.state.db_ready = False
+    logger.exception("Database initialization failed; starting in degraded mode.")
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
