@@ -5,13 +5,16 @@ export function getPasswordRequirements(password) {
     { label: "One lowercase letter", valid: /[a-z]/.test(password) },
     { label: "One number", valid: /\d/.test(password) },
     { label: "One symbol", valid: /[^A-Za-z0-9]/.test(password) },
-    {
-      label: "No more than 72 UTF-8 bytes",
-      valid: new TextEncoder().encode(password).length <= 72,
-    },
   ];
 }
 
 export function isStrongPassword(password) {
-  return getPasswordRequirements(password).every((requirement) => requirement.valid);
+  return (
+    getPasswordRequirements(password).every((requirement) => requirement.valid) &&
+    new TextEncoder().encode(password).length <= 72
+  );
+}
+
+export function exceedsPasswordByteLimit(password) {
+  return new TextEncoder().encode(password).length > 72;
 }

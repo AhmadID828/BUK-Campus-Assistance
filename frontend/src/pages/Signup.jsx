@@ -2,7 +2,11 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { API_BASE_URL } from "../config";
 import {Loader2 } from "lucide-react";
-import { getPasswordRequirements, isStrongPassword } from "../utils/password";
+import {
+  exceedsPasswordByteLimit,
+  getPasswordRequirements,
+  isStrongPassword,
+} from "../utils/password";
 
 function Signup() {
   const [form, setForm] = useState({
@@ -78,9 +82,9 @@ function Signup() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-8">
-      <div className="w-full max-w-md">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
-          <h1 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-2">
+      <div className="w-full max-w-lg px-4">
+        <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:p-8">
+          <h1 className="mb-2 text-center text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
             Create Account
           </h1>
           <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
@@ -110,7 +114,7 @@ function Signup() {
                 value={form.full_name}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                 placeholder="Ahmad Idris Dauda"
               />
             </div>
@@ -125,7 +129,7 @@ function Signup() {
                 value={form.email}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                 placeholder="your.email@buk.edu.ng"
               />
             </div>
@@ -140,7 +144,7 @@ function Signup() {
                 value={form.reg_number}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                 placeholder="CST/20/COM/00001"
               />
             </div>
@@ -155,12 +159,12 @@ function Signup() {
                 value={form.faculty}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                 placeholder="Faculty of Computing"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Department
@@ -171,7 +175,7 @@ function Signup() {
                   value={form.department}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                   placeholder="Computer Science"
                 />
               </div>
@@ -185,7 +189,7 @@ function Signup() {
                   value={form.level}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">Select</option>
                   <option value="100">100</option>
@@ -208,7 +212,7 @@ function Signup() {
                 onChange={handleChange}
                 required
                 autoComplete="new-password"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                 placeholder="Create a strong password"
               />
               <ul className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" aria-live="polite">
@@ -218,6 +222,11 @@ function Signup() {
                   </li>
                 ))}
               </ul>
+              {exceedsPasswordByteLimit(form.password) && (
+                <p className="mt-2 text-xs text-red-600" role="alert">
+                  Password is too long. Choose a shorter password.
+                </p>
+              )}
             </div>
 
             <div>
@@ -231,7 +240,7 @@ function Signup() {
                 onChange={handleChange}
                 required
                 autoComplete="new-password"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white font-medium placeholder:text-gray-400 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                 placeholder="Repeat password"
               />
             </div>
@@ -239,7 +248,7 @@ function Signup() {
             <button
               type="submit"
               disabled={loading || !isStrongPassword(form.password) || form.password !== form.confirmPassword}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-md transition flex items-center justify-center gap-2 disabled:opacity-70 mt-2"
+              className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-semibold text-white shadow-md transition hover:bg-blue-700 disabled:opacity-70"
             >
               {loading ? (
                 <Loader2 className="animate-spin" size={18} />

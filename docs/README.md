@@ -67,6 +67,23 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
 5. Keep local `.env` values separate from Vercel/Render environment settings.
    Vercel embeds `VITE_API_URL` when building, so redeploy after changing it.
 
+## Copy local campus locations to Render
+
+The local and Render databases are separate. To replace all Render campus
+locations with the 12 locations from the local database, back up the Render
+database first, then run `backend/scripts/replace_online_campus_locations.sql`
+in the Render PostgreSQL query console. This script deletes all existing
+`campus_locations` rows before inserting the local set; it does not copy
+events, FAQs, or emergency contacts.
+
+## Approve student registrations
+
+Students register with the signup page and wait for administrator approval.
+Sign in with an admin account, open **Pending Approvals**, and select **Approve**
+or **Reject** for each registration. Approved students receive access to
+protected study features. The backend sends an approval email when mail
+configuration is available.
+
 ## Restore an administrator account
 
 There is intentionally no public admin registration form; public signup creates

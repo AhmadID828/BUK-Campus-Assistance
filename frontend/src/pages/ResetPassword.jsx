@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { API_BASE_URL } from "../config";
-import { getPasswordRequirements, isStrongPassword } from "../utils/password";
+import {
+  exceedsPasswordByteLimit,
+  getPasswordRequirements,
+  isStrongPassword,
+} from "../utils/password";
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
@@ -60,6 +64,11 @@ export default function ResetPassword() {
               </li>
             ))}
           </ul>
+          {exceedsPasswordByteLimit(password) && (
+            <p className="text-xs text-red-600" role="alert">
+              Password is too long. Choose a shorter password.
+            </p>
+          )}
           <input type="password" required autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="Confirm new password" className="w-full rounded-xl border border-slate-200 px-4 py-3" />
           <button disabled={loading || !isStrongPassword(password) || password !== confirm} className="w-full rounded-xl bg-blue-600 py-3.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{loading ? "Resetting..." : "Reset password"}</button>
         </form>}
