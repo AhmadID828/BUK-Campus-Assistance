@@ -6,7 +6,7 @@ import {
   UserPlus,
   UserRoundX,
 } from "lucide-react";
-import { API_BASE_URL } from "../../config";
+import { API_BASE_URL, CHIEF_ADMIN_EMAIL } from "../../config";
 import { useAuth } from "../../context/AuthContext";
 import {
   exceedsPasswordByteLimit,
@@ -16,7 +16,7 @@ import {
 
 export default function ManageAdmins() {
   const { token, user } = useAuth();
-  const isSystemAdmin = user?.email?.trim().toLowerCase() === "admin@buk.edu.ng";
+  const isSystemAdmin = user?.email?.trim().toLowerCase() === CHIEF_ADMIN_EMAIL;
   const [form, setForm] = useState({ full_name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [admins, setAdmins] = useState([]);
@@ -72,7 +72,7 @@ export default function ManageAdmins() {
     setMessage("");
     setError("");
     if (!isSystemAdmin) {
-      setError("Only admin@buk.edu.ng can create administrator accounts.");
+      setError(`Only ${CHIEF_ADMIN_EMAIL} can create administrator accounts.`);
       return;
     }
     if (!isStrongPassword(form.password)) {
@@ -151,7 +151,7 @@ export default function ManageAdmins() {
 
       {!isSystemAdmin ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-          Administrator creation is restricted to <strong>admin@buk.edu.ng</strong>.
+          Administrator creation is restricted to <strong>{CHIEF_ADMIN_EMAIL}</strong>.
         </div>
       ) : (
         <>
@@ -262,7 +262,7 @@ export default function ManageAdmins() {
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-gray-700">
               {admins.map((account) => {
-                const isChief = account.email?.trim().toLowerCase() === "admin@buk.edu.ng";
+                const isChief = account.email?.trim().toLowerCase() === CHIEF_ADMIN_EMAIL;
                 return (
                   <li
                     key={account.id}

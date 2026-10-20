@@ -9,7 +9,6 @@ import EventsPage from "./pages/EventsPage";
 import FAQs from "./pages/FAQs";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
-import AdminLogin from "./pages/AdminLogin";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import MapPage from "./pages/MapPage";
@@ -37,7 +36,7 @@ function App() {
         <Routes>
           <Route path="/" element={<WelcomePage />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/login" element={<Navigate to="/login" replace />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />

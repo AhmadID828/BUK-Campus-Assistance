@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Footer from "../components/Footer";
+import { CHIEF_ADMIN_EMAIL } from "../config";
 
 import {
   LayoutDashboard,
@@ -33,7 +34,7 @@ const AdminLayout = () => {
     { name: "Events", path: "/admin/events", icon: Calendar },
     { name: "FAQs", path: "/admin/faqs", icon: HelpCircle },
     { name: "Campus FAQs", path: "/admin/campus-faqs", icon: HelpCircle },
-    ...(user?.email?.trim().toLowerCase() === "admin@buk.edu.ng"
+    ...(user?.email?.trim().toLowerCase() === CHIEF_ADMIN_EMAIL
       ? [{ name: "Register Admin", path: "/admin/register", icon: UserPlus }]
       : []),
   ];

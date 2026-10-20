@@ -58,10 +58,22 @@ configuration is available.
 
 ## Administrator access
 
-Administrators can sign in at `/admin/login`. Admin registration is intentionally
-not public: only the signed-in chief administrator can register additional
-administrators at `/admin/register`. Administrators can review student requests
-from **Pending Approvals**.
+Students and administrators use the same sign-in page at `/login`; successful
+sign-in sends each account to the appropriate dashboard. Admin registration is
+intentionally not public: only the signed-in chief administrator can register
+additional administrators at `/admin/register`. Administrators can review
+student requests from **Pending Approvals**.
+
+The localhost chief-administrator account remains `admin@buk.edu.ng`. The
+backend defaults to `aidsfaz@gmail.com` on Render and to `admin@buk.edu.ng`
+locally; you can override this with `CHIEF_ADMIN_EMAIL`. For the hosted
+frontend, set Vercel's `VITE_CHIEF_ADMIN_EMAIL` to `aidsfaz@gmail.com` (the
+frontend otherwise selects the chief email based on its API URL). Before
+deploying that change, back up the hosted database and run
+`backend/scripts/change_chief_admin_email.sql` against it. The script stops if
+the previous chief-admin account is missing/ambiguous or if the new email
+already belongs to another account. It changes only the hosted email; the
+existing password is retained. Do not run this SQL against localhost.
 
 ## Public campus map and FAQ access
 

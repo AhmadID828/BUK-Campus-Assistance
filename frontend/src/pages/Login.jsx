@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, HelpCircle, Loader2, MapPin } from "lucide-react";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL, CHIEF_ADMIN_EMAIL } from "../config";
 import { useAuth } from "../context/AuthContext";
 
-const Login = ({ adminPortal = false }) => {
+const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
@@ -33,16 +33,12 @@ const Login = ({ adminPortal = false }) => {
       }
 
       if (
-        email.trim().toLowerCase() === "admin@buk.edu.ng" &&
+        email.trim().toLowerCase() === CHIEF_ADMIN_EMAIL &&
         data.user?.role !== "admin"
       ) {
         throw new Error(
           "This account is not configured as an administrator. Please contact the system administrator to restore its admin access."
         );
-      }
-
-      if (adminPortal && data.user?.role !== "admin") {
-        throw new Error("This sign-in is for administrator accounts only.");
       }
 
       if (data.refresh_token) {
@@ -79,7 +75,7 @@ const Login = ({ adminPortal = false }) => {
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-blue-100 dark:border-gray-700 p-8">
           <h2 className="text-xl font-semibold text-slate-800 dark:text-white mb-6">
-            {adminPortal ? "Administrator sign in" : "Sign in to your account"}
+            Sign in to your account
           </h2>
 
           {error && (
@@ -133,23 +129,10 @@ const Login = ({ adminPortal = false }) => {
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-            {adminPortal ? (
-              <div className="space-y-2">
-                <p>
-                  Admin registration is limited to the chief administrator after sign-in.
-                </p>
-                <Link to="/login" className="block text-blue-600 font-medium hover:underline">
-                  Sign in as a student
-                </Link>
-              </div>
-            ) : (
-              <>
-                Do not have an account?{" "}
-                <Link to="/signup" className="text-blue-600 font-medium hover:underline">
-                  Sign up
-                </Link>
-              </>
-            )}
+            Do not have an account?{" "}
+            <Link to="/signup" className="text-blue-600 font-medium hover:underline">
+              Sign up
+            </Link>
           </p>
         </div>
 
@@ -174,14 +157,6 @@ const Login = ({ adminPortal = false }) => {
           <HelpCircle size={16} />
           Browse campus FAQs
         </Link>
-        {!adminPortal && (
-          <Link
-            to="/admin/login"
-            className="mt-3 inline-flex w-full items-center justify-center text-sm font-medium text-slate-500 hover:text-blue-700"
-          >
-            Administrator sign in
-          </Link>
-        )}
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db # type: ignore
 from app.models.user import User
 from app.models.planner import StudyPlan, StudyTopic, Course
-from app.utils.dependencies import get_current_admin, get_super_admin
+from app.utils.dependencies import CHIEF_ADMIN_EMAIL, get_current_admin, get_super_admin
 from app.utils.email import send_approval_email, send_email
 from app.utils.auth import hash_password, password_validation_errors
 from app.models.study_material import StudyMaterial # type: ignore
@@ -215,7 +215,7 @@ async def remove_admin_account(
     if not account:
         raise HTTPException(status_code=404, detail="Administrator not found")
 
-    if (account.email or "").strip().lower() == "admin@buk.edu.ng":
+    if (account.email or "").strip().lower() == CHIEF_ADMIN_EMAIL:
         raise HTTPException(
             status_code=400,
             detail="The chief administrator account cannot be removed",
@@ -241,7 +241,7 @@ async def reactivate_admin_account(
     if not account:
         raise HTTPException(status_code=404, detail="Administrator not found")
 
-    if (account.email or "").strip().lower() == "admin@buk.edu.ng":
+    if (account.email or "").strip().lower() == CHIEF_ADMIN_EMAIL:
         raise HTTPException(
             status_code=400,
             detail="The chief administrator account is already protected",
