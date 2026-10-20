@@ -65,7 +65,11 @@ function Signup() {
       setSuccess("Account created successfully! Waiting for admin approval. Redirecting to login...");
       setTimeout(() => navigate("/login"), 2500);
     } catch (err) {
-      setError("An error occurred. Please try again.");
+      setError(
+        err instanceof TypeError
+          ? "Cannot reach the server. Check your internet connection, frontend API URL, and backend CORS settings."
+          : "An error occurred. Please try again."
+      );
       console.error(err);
     } finally {
       setLoading(false);

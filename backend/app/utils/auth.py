@@ -17,8 +17,8 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 def password_validation_errors(password: str) -> list[str]:
     errors = []
-    if len(password) < 12:
-        errors.append("at least 12 characters")
+    if len(password) < 8:
+        errors.append("at least 8 characters")
     if not re.search(r"[A-Z]", password):
         errors.append("one uppercase letter")
     if not re.search(r"[a-z]", password):

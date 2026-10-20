@@ -39,7 +39,11 @@ const Login = () => {
       login(data.user, data.access_token);
       navigate(data.user?.role === "admin" ? "/admin" : "/dashboard");
     } catch (loginError) {
-      setError(loginError.message || "An error occurred. Please try again.");
+      setError(
+        loginError instanceof TypeError
+          ? "Cannot reach the server. Check your internet connection, frontend API URL, and backend CORS settings."
+          : loginError.message || "An error occurred. Please try again."
+      );
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 export function getPasswordRequirements(password) {
   return [
-    { label: "At least 12 characters", valid: password.length >= 12 },
+    { label: "At least 8 characters", valid: password.length >= 8 },
     { label: "One uppercase letter", valid: /[A-Z]/.test(password) },
     { label: "One lowercase letter", valid: /[a-z]/.test(password) },
     { label: "One number", valid: /\d/.test(password) },

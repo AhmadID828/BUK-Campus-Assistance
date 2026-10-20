@@ -146,15 +146,15 @@ class FakePlannerDB:
 
 class PasswordStrengthTests(unittest.TestCase):
     def test_password_policy_rejects_weak_passwords(self):
-        errors = password_validation_errors("short")
+        errors = password_validation_errors("Aa1!abc")
 
-        self.assertIn("at least 12 characters", errors)
-        self.assertIn("one uppercase letter", errors)
-        self.assertIn("one number", errors)
-        self.assertIn("one symbol", errors)
+        self.assertEqual(errors, ["at least 8 characters"])
 
     def test_password_policy_accepts_strong_password(self):
         self.assertEqual(password_validation_errors("StrongPass123!"), [])
+
+    def test_password_policy_accepts_eight_character_password(self):
+        self.assertEqual(password_validation_errors("Aa1!abcd"), [])
 
     def test_password_policy_rejects_password_over_bcrypt_byte_limit(self):
         errors = password_validation_errors("Aa1!" + "é" * 35)
@@ -176,7 +176,7 @@ class PasswordStrengthTests(unittest.TestCase):
             auth.register(user_data, db=None) #type:ignore[arg-type]
 
         self.assertEqual(raised.exception.status_code, 400)
-        self.assertIn("at least 12 characters", raised.exception.detail)
+        self.assertIn("at least 8 characters", raised.exception.detail)
 
 
 class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
