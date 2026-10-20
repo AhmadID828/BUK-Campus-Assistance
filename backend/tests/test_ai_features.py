@@ -362,9 +362,18 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_forgot_password_uses_deployed_frontend_url(self):
         user = SimpleNamespace(email="student@example.test")
-        query = SimpleNamespace(
-            filter=lambda *conditions: SimpleNamespace(first=lambda: user)
-        )
+
+        class ResetQuery:
+            condition = None
+
+            def filter(self, condition):
+                self.condition = condition
+                return self
+
+            def first(self):
+                return user
+
+        query = ResetQuery()
         db = SimpleNamespace(query=lambda model: query)
 
         with patch(
@@ -378,6 +387,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
                 db=db, #type:ignore
             )
 
+        self.assertIn("lower(users.email)", str(query.condition).lower())
         self.assertIn("https://study.example.test/reset-password?token=", send_email.call_args.args[1])
         self.assertIn("password reset link has been sent", result["message"])
 

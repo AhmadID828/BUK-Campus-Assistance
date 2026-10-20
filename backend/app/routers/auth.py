@@ -45,7 +45,7 @@ async def forgot_password(
     db: Session = Depends(get_db),
 ):
     email = str(request.email).strip().lower()
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(func.lower(User.email) == email).first()
 
     if user:
         reset_token = jwt.encode(
