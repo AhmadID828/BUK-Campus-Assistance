@@ -53,7 +53,17 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/materials" element={<MaterialsPage />} />
             <Route path="/quiz" element={<QuizPage />} />
-            <Route path="/planner" element={<PlannerPage />} />
+            <Route
+              path="/planner"
+              element={
+                <ProtectedRoute
+                  requireApproved
+                  featureName="the Study Planner and Adaptive Planner"
+                >
+                  <PlannerPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/emergency" element={<EmergencyContacts />} />
