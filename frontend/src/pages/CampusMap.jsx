@@ -518,7 +518,7 @@ function CampusMap({
             </div>
           )}
 
-        <div className={`relative h-[480px] overflow-hidden rounded-xl ${routeDetails ? "lg:col-span-2 lg:col-start-1 lg:row-start-1" : ""}`}>
+        <div className={`relative h-[55dvh] min-h-[320px] max-h-[560px] overflow-hidden rounded-xl sm:h-[min(65vh,600px)] ${routeDetails ? "lg:col-span-2 lg:col-start-1 lg:row-start-1" : ""}`}>
           <LocateButton onLocate={handleLocate} />
           <MapContainer
             center={BUK_CENTER}

@@ -81,7 +81,7 @@ const MapPage = () => {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
+    <div className="mx-auto max-w-6xl px-3 py-4 pb-24 sm:px-4 sm:py-6">
       <div className="mb-5">
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
           <MapPin className="text-blue-600" size={26} />
@@ -140,7 +140,7 @@ const MapPage = () => {
 
       <div className="mb-5 bg-white rounded-2xl border border-blue-100 overflow-hidden shadow-sm">
         {loading ? (
-          <div className="h-[500px] flex items-center justify-center text-slate-500">
+          <div className="flex h-[55dvh] min-h-[320px] max-h-[560px] items-center justify-center text-slate-500 sm:h-[min(65vh,600px)]">
             Loading map...
           </div>
         ) : (

@@ -5,6 +5,7 @@ A final year project for Bayero University Kano (BUK) that combines intelligent 
 ## Features
 - AI Chatbot (Academic + Campus queries)
 - Lecture notes summarization and Q&A
+- Study material uploads (PDF, DOCX, PPTX; maximum 2 MB per file)
 - Adaptive study planner
 - Campus information system
 - Interactive BUK campus map with location assistance

@@ -14,6 +14,178 @@ import {
   Trash2,
 } from "lucide-react";
 
+const PlannerSchedule = ({
+  plan,
+  loading,
+  onUpdateTopic,
+  onCompleteTopic,
+  onRemoveTopic,
+}) => {
+  const items = plan?.plan || [];
+  const completedCount = items.filter((item) => item.completed).length;
+  const completion = items.length
+    ? Math.round((completedCount / items.length) * 100)
+    : 0;
+
+  return (
+    <section className="mb-6 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="bg-gradient-to-r from-blue-700 to-indigo-700 px-5 py-5 text-white sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="rounded-xl bg-white/15 p-2.5">
+              <Calendar className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-100">
+                Your generated schedule
+              </p>
+              <h2 className="mt-1 text-xl font-bold">
+                {plan?.title || "Active study plan"}
+              </h2>
+              {plan && (
+                <p className="mt-1 text-sm text-blue-100">
+                  {plan.start_date || "--"} <span aria-hidden="true">→</span>{" "}
+                  {plan.end_date || "--"}
+                </p>
+              )}
+            </div>
+          </div>
+          {plan && (
+            <div className="rounded-xl bg-white/10 px-3 py-2 text-right">
+              <p className="text-lg font-bold">{completedCount}/{items.length}</p>
+              <p className="text-[11px] text-blue-100">topics completed</p>
+            </div>
+          )}
+        </div>
+        {plan && (
+          <div className="mt-4">
+            <div
+              className="h-2 overflow-hidden rounded-full bg-white/20"
+              role="progressbar"
+              aria-label="Study plan completion"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={completion}
+            >
+              <div
+                className="h-full rounded-full bg-emerald-300 transition-all"
+                style={{ width: `${completion}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-right text-xs text-blue-100">
+              {completion}% complete
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 sm:p-6">
+        {loading ? (
+          <div className="flex h-24 items-center justify-center">
+            <Loader2 className="animate-spin text-blue-600" size={28} />
+          </div>
+        ) : !plan ? (
+          <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/60 px-4 py-8 text-center dark:border-gray-600 dark:bg-gray-700/30">
+            <Calendar className="mx-auto h-8 w-8 text-blue-500" />
+            <p className="mt-3 font-semibold text-gray-800 dark:text-white">
+              Your study schedule will appear here
+            </p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+              Select <strong>Generate Plan</strong> above to create a schedule from your topics and study materials.
+            </p>
+          </div>
+        ) : items.length === 0 ? (
+          <p className="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500 dark:bg-gray-700/40 dark:text-gray-300">
+            Your plan is active, but it has no scheduled topics yet. Add a topic or material below, then regenerate the plan.
+          </p>
+        ) : (
+          <ol className="space-y-3">
+            {items.map((item, index) => (
+              <li
+                key={item.topic_id || `${item.topic}-${item.date}-${index}`}
+                className={`relative rounded-xl border p-4 transition ${
+                  item.completed
+                    ? "border-emerald-100 bg-emerald-50/60 dark:border-emerald-900/50 dark:bg-emerald-900/10"
+                    : "border-gray-100 bg-gray-50/70 dark:border-gray-700 dark:bg-gray-700/30"
+                }`}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        item.completed
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200"
+                      }`}
+                    >
+                      {item.completed ? <CheckCircle2 size={16} /> : index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold text-gray-800 dark:text-white">
+                        {item.topic}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
+                        {item.course || "Study topic"} <span aria-hidden="true">·</span> {item.date || "Date to be scheduled"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pl-11 sm:pl-0">
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                      {item.hours}h study time
+                    </span>
+                    {item.topic_id && !item.completed && (
+                      <select
+                        value={item.priority}
+                        onChange={(event) =>
+                          onUpdateTopic(item.topic_id, {
+                            priority: Number(event.target.value),
+                          })
+                        }
+                        className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        aria-label={`Priority for ${item.topic}`}
+                      >
+                        <option value={1}>High priority</option>
+                        <option value={2}>Medium priority</option>
+                        <option value={3}>Low priority</option>
+                      </select>
+                    )}
+                    {item.completed ? (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                        Completed
+                      </span>
+                    ) : item.topic_id ? (
+                      <button
+                        onClick={() => onCompleteTopic(item.topic_id)}
+                        className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                      >
+                        Mark complete
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        Regenerate to track
+                      </span>
+                    )}
+                    {item.topic_id && (
+                      <button
+                        onClick={() => onRemoveTopic(item.topic_id)}
+                        className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-900/20"
+                        title="Remove from planner"
+                        aria-label={`Remove ${item.topic} from planner`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </section>
+  );
+};
+
 const PlannerPage = () => {
   const { token } = useAuth();
   const { guard, showLockedModal, lockedFeatureName, closeModal } = useApprovalGuard();
@@ -365,6 +537,14 @@ const PlannerPage = () => {
         </div>
       )}
 
+      <PlannerSchedule
+        plan={plan}
+        loading={loading}
+        onUpdateTopic={handleUpdateTopic}
+        onCompleteTopic={handleCompleteTopic}
+        onRemoveTopic={handleRemoveTopic}
+      />
+
       {progress && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
@@ -613,97 +793,6 @@ const PlannerPage = () => {
           )}
         </div>
       )}
-
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-gray-700 p-5 shadow-sm">
-        <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Active Study Plan</h3>
-
-        {loading ? (
-          <div className="flex justify-center h-24 items-center">
-            <Loader2 className="animate-spin text-blue-600" size={28} />
-          </div>
-        ) : !plan ? (
-          <p className="text-sm text-gray-500">
-            No active study plan. Generate one to get started.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-gray-500 mb-3">
-              {plan.title} · {plan.start_date || "--"} → {plan.end_date || "--"}
-            </p>
-
-            {(plan.plan || []).map((item, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm"
-              >
-                <div>
-                  <p className="font-medium text-gray-800 dark:text-white">{item.topic}</p>
-                  <p className="text-xs text-gray-500">
-                    {item.course} · {item.date} · Priority {item.priority}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-blue-600 font-semibold">{item.hours}h</span>
-                  {item.topic_id && (
-                    <label className="sr-only" htmlFor={`priority-${item.topic_id}`}>
-                      Priority for {item.topic}
-                    </label>
-                  )}
-                  {item.topic_id && !item.completed && (
-                    <select
-                      id={`priority-${item.topic_id}`}
-                      value={item.priority}
-                      onChange={(event) => handleUpdateTopic(item.topic_id, { priority: Number(event.target.value) })}
-                      className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs dark:border-gray-600 dark:bg-gray-800"
-                      aria-label={`Priority for ${item.topic}`}
-                    >
-                      <option value={1}>High priority</option>
-                      <option value={2}>Medium priority</option>
-                      <option value={3}>Low priority</option>
-                    </select>
-                  )}
-                  {item.completed ? (
-                    <>
-                      <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium">
-                        Completed
-                      </span>
-                      {item.topic_id && (
-                        <button
-                          onClick={() => handleRemoveTopic(item.topic_id)}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg"
-                          title="Remove from planner"
-                          aria-label={`Remove ${item.topic} from planner`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </>
-                  ) : item.topic_id ? (
-                    <>
-                      <button
-                        onClick={() => handleCompleteTopic(item.topic_id)}
-                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-medium"
-                      >
-                        Mark complete
-                      </button>
-                      <button
-                        onClick={() => handleRemoveTopic(item.topic_id)}
-                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg"
-                        title="Remove from planner"
-                        aria-label={`Remove ${item.topic} from planner`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-xs text-gray-400">Regenerate to track</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       <LockedFeatureModal
         isOpen={showLockedModal}

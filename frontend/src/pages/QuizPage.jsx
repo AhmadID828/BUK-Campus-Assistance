@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useAuth } from "../context/AuthContext";
 import { API_BASE_URL } from "../config";
@@ -25,6 +26,7 @@ const QuizPage = () => {
   const [success, setSuccess] = useState("");
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [quizResult, setQuizResult] = useState(null);
+  const [latestQuizId, setLatestQuizId] = useState(null);
   const [attemptId, setAttemptId] = useState(null);
   const [answers, setAnswers] = useState({});
   const [remaining, setRemaining] = useState(0);
@@ -150,7 +152,8 @@ const QuizPage = () => {
         throw new Error(data.detail || "Failed to generate quiz");
       }
       const data = await response.json();
-      setSuccess(`Quiz generated: ${data.title || "Success"}`);
+      setSuccess(`Your quiz is ready. “${data.title || "New quiz"}” is at the top of Your quizzes.`);
+      setLatestQuizId(data.quiz_id);
       setSavedQuizzes((currentQuizzes) => [
         {
           quiz_id: data.quiz_id,
@@ -359,63 +362,135 @@ const QuizPage = () => {
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 rounded-xl text-sm">{success}</div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl border p-5 mb-6">
-        <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Generate New Quiz</h3>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <select
-            value={selectedMaterial}
-            onChange={(e) => setSelectedMaterial(e.target.value)}
-            disabled={materials.length === 0 || generating}
-            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border rounded-lg text-sm disabled:opacity-60"
-          >
-            <option value="">Select material</option>
-            {materials.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.title}
-              </option>
-            ))}
-          </select>
-          <select
-            value={questionCount}
-            onChange={(e) => setQuestionCount(e.target.value)}
-            disabled={generating}
-            className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border rounded-lg text-sm"
-            aria-label="Number of quiz questions"
-          >
-            <option value="3">3 questions (fast)</option>
-            <option value="5">5 questions</option>
-            <option value="10">10 questions</option>
-            <option value="20">20 questions</option>
-            <option value="30">30 questions</option>
-            <option value="50">50 questions</option>
-          </select>
-          <select
-            value={provider}
-            onChange={(e) => setProvider(e.target.value)}
-            disabled={generating}
-            className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border rounded-lg text-sm"
-            aria-label="Quiz AI provider"
-          >
-            <option value="ollama">Local Ollama (public)</option>
-            <option value="groq">Groq (faster)</option>
-          </select>
-          <button
-            onClick={handleGenerate}
-            disabled={generating || !selectedMaterial}
-            className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm"
-          >
-            <Brain className="w-4 h-4" />
-            {generating ? `Generating ${questionCount} questions...` : "Generate Quiz"}
-          </button>
+      <section className="mb-7 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="border-b border-amber-100 bg-amber-50/70 px-5 py-4 dark:border-gray-700 dark:bg-amber-900/10">
+          <div className="flex items-center gap-3">
+            <span className="rounded-xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+              <Brain className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="font-semibold text-gray-900 dark:text-white">Create a quiz from your notes</h2>
+              <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
+                Choose a material, set the quiz length and AI provider, then generate.
+              </p>
+            </div>
+          </div>
+          <ol className="mt-4 grid grid-cols-1 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-3">
+            <li className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-2 dark:bg-gray-800">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 font-bold text-amber-800">1</span>
+              Select your uploaded notes
+            </li>
+            <li className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-2 dark:bg-gray-800">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 font-bold text-amber-800">2</span>
+              Choose questions and AI
+            </li>
+            <li className="flex items-center gap-2 rounded-lg bg-white/80 px-3 py-2 dark:bg-gray-800">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 font-bold text-amber-800">3</span>
+              Generate, then take your quiz
+            </li>
+          </ol>
         </div>
-        {materials.length === 0 && !loading && (
-          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-            Upload a study material before creating a quiz.
-          </p>
-        )}
-      </div>
 
-      <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Saved Quizzes</h3>
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200 sm:col-span-2">
+            Study material
+            <select
+              value={selectedMaterial}
+              onChange={(event) => setSelectedMaterial(event.target.value)}
+              disabled={materials.length === 0 || generating}
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 disabled:opacity-60"
+            >
+              <option value="">Choose the notes for this quiz</option>
+              {materials.map((material) => (
+                <option key={material.id} value={material.id}>
+                  {material.title}{material.subject ? ` · ${material.subject}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Number of questions
+            <select
+              value={questionCount}
+              onChange={(event) => setQuestionCount(event.target.value)}
+              disabled={generating}
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm dark:border-gray-600 dark:bg-gray-700"
+            >
+              <option value="3">3 questions · quickest</option>
+              <option value="5">5 questions</option>
+              <option value="10">10 questions</option>
+              <option value="20">20 questions</option>
+              <option value="30">30 questions</option>
+              <option value="50">50 questions</option>
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            AI provider
+            <select
+              value={provider}
+              onChange={(event) => setProvider(event.target.value)}
+              disabled={generating}
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm dark:border-gray-600 dark:bg-gray-700"
+            >
+              <option value="groq">Groq · faster</option>
+              <option value="ollama">Ollama · local model</option>
+            </select>
+          </label>
+
+          {materials.length === 0 && !loading ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-600 dark:bg-gray-700/40 dark:text-gray-300 sm:col-span-2">
+              <p className="font-medium text-gray-800 dark:text-white">No study materials yet</p>
+              <p className="mt-1">Upload lecture notes first. You can return here after upload; they will appear in the material list.</p>
+              <Link
+                to="/materials"
+                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+              >
+                Go to Study Materials
+              </Link>
+            </div>
+          ) : (
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating || !selectedMaterial}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {generating ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Creating your quiz...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="h-4 w-4" />
+                    Generate quiz
+                  </>
+                )}
+              </button>
+              {generating && (
+                <p role="status" aria-live="polite" className="mt-2 text-xs text-gray-500 dark:text-gray-300">
+                  Creating {questionCount} questions from your selected material. You can wait here; this may take a short while.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <div id="saved-quizzes" className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-gray-800 dark:text-white">Your quizzes</h2>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            New quizzes appear here and are ready to take.
+          </p>
+        </div>
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+          {savedQuizzes.length} total
+        </span>
+      </div>
       {loading ? (
         <div className="flex justify-center h-32 items-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
@@ -429,10 +504,21 @@ const QuizPage = () => {
           {savedQuizzes.map((quiz) => (
             <div
               key={quiz.quiz_id}
-              className="bg-white dark:bg-gray-800 rounded-xl border p-4 flex items-center justify-between"
+              className={`flex items-center justify-between gap-3 rounded-xl border p-4 ${
+                quiz.quiz_id === latestQuizId
+                  ? "border-amber-300 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-900/10"
+                  : "border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800"
+              }`}
             >
-              <div>
-                <p className="font-medium text-gray-800 dark:text-white">{quiz.title}</p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-gray-800 dark:text-white">{quiz.title}</p>
+                  {quiz.quiz_id === latestQuizId && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                      JUST CREATED
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500">
                   {quiz.total_questions} questions · {Math.floor(quiz.time_limit / 60)} minutes
                 </p>

@@ -28,8 +28,7 @@ const ManageEvents = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [rsvpEvent, setRsvpEvent] = useState(null);
-  const [rsvps, setRsvps] = useState(null);
+  const [rsvpStatistics, setRsvpStatistics] = useState({});
 
   const [form, setForm] = useState({
     title: "",
@@ -73,7 +72,21 @@ const ManageEvents = () => {
       });
       if (!response.ok) throw new Error("Failed to load events");
       const data = await response.json();
+      const rsvpResponse = await fetch(
+        `${API_BASE_URL}/events/admin/rsvp-statistics`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!rsvpResponse.ok) {
+        const rsvpError = await rsvpResponse.json().catch(() => ({}));
+        throw new Error(
+          typeof rsvpError.detail === "string"
+            ? rsvpError.detail
+            : "Failed to load RSVP statistics",
+        );
+      }
+      const rsvpData = await rsvpResponse.json();
       setEvents(data.events || []);
+      setRsvpStatistics(rsvpData.events || {});
     } catch (err) {
       setError(err.message);
     } finally {
@@ -222,20 +235,6 @@ const ManageEvents = () => {
     } finally {
       setActionLoading(false);
     }
-  };
-
-  const viewRsvps = async (event) => {
-    setRsvpEvent(event);
-    setRsvps(null);
-    const response = await fetch(`${API_BASE_URL}/events/${event.id}/rsvps`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(typeof data.detail === "string" ? data.detail : "Failed to load RSVPs");
-      return;
-    }
-    setRsvps(data);
   };
 
   const filtered = events.filter(
@@ -411,51 +410,68 @@ const ManageEvents = () => {
                       className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition">
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button onClick={() => viewRsvps(event)}
-                      className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20" title="View RSVPs">
-                      <span className="text-xs font-bold">RSVP</span>
-                    </button>
                     <button onClick={() => handleDelete(event.id)} disabled={actionLoading}
                       className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
+                  <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-700">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      RSVP responses
+                    </h4>
+                    <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+                      {[
+                        ["going", "Going", "text-green-700 dark:text-green-300"],
+                        ["maybe", "Maybe", "text-blue-700 dark:text-blue-300"],
+                        ["not_going", "Not going", "text-gray-600 dark:text-gray-300"],
+                      ].map(([status, label, color]) => (
+                        <div
+                          key={status}
+                          className="rounded-lg bg-gray-50 px-2 py-2 dark:bg-gray-700/60"
+                        >
+                          <span className={`block text-lg font-bold ${color}`}>
+                            {rsvpStatistics[event.id]?.counts?.[status] || 0}
+                          </span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                            {label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {["going", "maybe", "not_going"].map((status) => {
+                      const people = (rsvpStatistics[event.id]?.rsvps || [])
+                        .filter((response) => response.status === status)
+                        .map((response) => response.user.full_name);
+                      if (!people.length) return null;
+
+                      const label =
+                        status === "going"
+                          ? "Going"
+                          : status === "maybe"
+                            ? "Maybe"
+                            : "Not going";
+                      return (
+                        <p
+                          key={status}
+                          className="mb-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300"
+                        >
+                          <span className="font-semibold">{label}:</span>{" "}
+                          {people.join(", ")}
+                        </p>
+                      );
+                    })}
+                    {Object.values(rsvpStatistics[event.id]?.counts || {}).every(
+                      (count) => count === 0,
+                    ) && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        No RSVP responses yet.
+                      </p>
+                    )}
+                  </div>
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {rsvpEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setRsvpEvent(null)} />
-          <div className="relative max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-800 dark:text-white">RSVPs: {rsvpEvent.title}</h3>
-              <button onClick={() => setRsvpEvent(null)}><X className="w-5 h-5" /></button>
-            </div>
-            {!rsvps ? <p className="text-sm text-gray-500">Loading responses...</p> : (
-              <>
-                <div className="mb-4 grid grid-cols-3 gap-2 text-center text-xs">
-                  {Object.entries(rsvps.counts).map(([key, count]) => (
-                    <div key={key} className="rounded-lg bg-blue-50 p-2 text-blue-700">
-                      <strong className="block text-lg">{count}</strong>{key.replace("_", " ")}
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-2">
-                  {rsvps.rsvps.map((item) => (
-                    <div key={item.id} className="rounded-lg border p-3 text-sm dark:border-gray-700">
-                      <div className="font-medium">{item.user.full_name}</div>
-                      <div className="text-xs text-gray-500">{item.user.registration_number || item.user.email} · {item.status.replace("_", " ")}</div>
-                    </div>
-                  ))}
-                  {rsvps.rsvps.length === 0 && <p className="text-sm text-gray-500">No responses yet.</p>}
-                </div>
-              </>
-            )}
-          </div>
         </div>
       )}
 

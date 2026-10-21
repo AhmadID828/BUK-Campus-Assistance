@@ -2,6 +2,7 @@ import { useNavigate, Link } from "react-router-dom";
 import {
   AlertTriangle,
   BookOpen,
+  Brain,
   Calendar,
   FileQuestion,
   HelpCircle,
@@ -12,6 +13,14 @@ import useApprovalGuard from "../hooks/useApprovalGuard";
 import { useAuth } from "../context/AuthContext";
 
 const academicActions = [
+  {
+    title: "AI Chat",
+    description: "Ask questions and get help with your studies",
+    icon: Brain,
+    path: "/chat",
+    color: "bg-violet-600",
+    protected: true,
+  },
   {
     title: "Study Materials",
     description: "Review your approved learning materials",

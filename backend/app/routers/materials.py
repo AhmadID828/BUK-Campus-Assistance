@@ -23,6 +23,7 @@ from app.utils.file_extractor import (
 router = APIRouter(prefix="/materials", tags=["Study Materials"])
 
 UPLOAD_DIR = "uploads"
+MAX_UPLOAD_SIZE = 2 * 1024 * 1024
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def decode_cursor(cursor: str) -> int:
 
 
 @router.post("/upload")
-async def upload_material(
+def upload_material(
     file: UploadFile = File(...),
     title: str = Form("Untitled Material"),
     subject: str = Form("General"),
@@ -60,8 +61,21 @@ async def upload_material(
     safe_filename = f"{user.id}_{os.path.basename(filename)}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    uploaded_size = 0
+    try:
+        with open(file_path, "wb") as buffer:
+            while chunk := file.file.read(64 * 1024):
+                uploaded_size += len(chunk)
+                if uploaded_size > MAX_UPLOAD_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Material file must be 2 MB or smaller.",
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
 
     extracted_text = extract_text_from_file(file_path)
 

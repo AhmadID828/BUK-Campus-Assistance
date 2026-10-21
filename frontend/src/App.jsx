@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { MaterialUploadProvider } from "./context/MaterialUploadContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLayout from "./layouts/AdminLayout";
 import StudentLayout from "./layouts/StudentLayout";
@@ -33,7 +34,8 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
+        <MaterialUploadProvider>
+          <Routes>
           <Route path="/" element={<WelcomePage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/admin/login" element={<Navigate to="/login" replace />} />
@@ -94,7 +96,8 @@ function App() {
           </Route>
 
           <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
+          </Routes>
+        </MaterialUploadProvider>
       </AuthProvider>
     </BrowserRouter>
   );

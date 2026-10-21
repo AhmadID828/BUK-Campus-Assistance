@@ -10,6 +10,8 @@ import {
   Plus,
   Square,
   ChevronDown,
+  Settings2,
+  X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { API_BASE_URL } from "../config";
@@ -31,6 +33,7 @@ export default function Chat() {
   const [sessions, setSessions] = useState([]);
   const [sessionId, setSessionId] = useState(null);
   const [showRecent, setShowRecent] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const bottomRef = useRef(null);
   const requestControllerRef = useRef(null);
 
@@ -148,61 +151,47 @@ export default function Chat() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 h-[calc(100vh-80px)] flex flex-col">
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-0 w-full max-w-6xl min-w-0 flex-col px-0 py-2 sm:h-[calc(100dvh-11rem)] sm:px-2 sm:py-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800">AI Assistant</h1>
-          <p className="text-sm text-slate-500">Academic help + Campus information</p>
+      <div className="mb-3 shrink-0 space-y-3 sm:mb-4">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-slate-800 sm:text-xl">AI Assistant</h1>
+            <p className="truncate text-xs text-slate-500 sm:text-sm">
+              Academic help + Campus information
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowRecent(true)}
+              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+              aria-label="Open recent conversations"
+            >
+              <MessageSquare size={16} />
+              <span className="hidden sm:inline">History</span>
+            </button>
+            <button
+              type="button"
+              onClick={startNewChat}
+              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <Plus size={16} />
+              <span>New</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              className="flex min-h-10 w-10 items-center justify-center rounded-xl border border-blue-100 bg-white text-slate-700 hover:bg-blue-50 sm:hidden"
+              aria-label="Chat settings"
+            >
+              <Settings2 size={18} />
+            </button>
+          </div>
         </div>
 
-        {/* Mode switcher */}
-        <div className="flex items-center gap-2">
-          <select
-            value={provider}
-            onChange={(e) => {
-              const nextProvider = e.target.value;
-              setProvider(nextProvider);
-              setModel(nextProvider === "groq" ? "openai/gpt-oss-20b" : "gemma2:2b");
-            }}
-            disabled={loading}
-            className="rounded-xl border border-blue-100 bg-white px-2 py-2 text-sm text-slate-700"
-            aria-label="AI provider"
-          >
-            <option value="ollama">Ollama</option>
-            <option value="groq">Groq</option>
-          </select>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            disabled={loading}
-            className="rounded-xl border border-blue-100 bg-white px-2 py-2 text-sm text-slate-700"
-            aria-label="AI model"
-          >
-            {provider === "groq" ? (
-              <option value="openai/gpt-oss-20b">GPT OSS 20B</option>
-            ) : (
-              <option value="gemma2:2b">Gemma 2 2B</option>
-            )}
-          </select>
-          <button
-            type="button"
-            onClick={() => setShowRecent((value) => !value)}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
-          >
-            <MessageSquare size={15} />
-            Recent
-          </button>
-          <button
-            type="button"
-            onClick={startNewChat}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            <Plus size={15} />
-            New
-          </button>
-        </div>
-        <div className="flex bg-blue-50 rounded-xl p-1">
+        <div className="flex w-full rounded-xl bg-blue-50 p-1 sm:w-fit">
           {[
             { id: "mixed", label: "All", icon: null },
             { id: "academic", label: "Study", icon: <BookOpen size={14} /> },
@@ -211,7 +200,7 @@ export default function Chat() {
             <button
               key={m.id}
               onClick={() => setMode(m.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+              className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition sm:flex-initial ${
                 mode === m.id
                   ? "bg-blue-600 text-white shadow"
                   : "text-slate-600 hover:bg-blue-100"
@@ -222,40 +211,94 @@ export default function Chat() {
             </button>
           ))}
         </div>
+
+        <div className="hidden items-center gap-2 sm:flex">
+          <select
+            value={provider}
+            onChange={(e) => {
+              const nextProvider = e.target.value;
+              setProvider(nextProvider);
+              setModel(nextProvider === "groq" ? "openai/gpt-oss-20b" : "gemma2:2b");
+            }}
+            disabled={loading}
+            className="min-h-10 rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700"
+            aria-label="AI provider"
+          >
+            <option value="ollama">Ollama</option>
+            <option value="groq">Groq</option>
+          </select>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            disabled={loading}
+            className="min-h-10 rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700"
+            aria-label="AI model"
+          >
+            {provider === "groq" ? (
+              <option value="openai/gpt-oss-20b">GPT OSS 20B</option>
+            ) : (
+              <option value="gemma2:2b">Gemma 2 2B</option>
+            )}
+          </select>
+        </div>
       </div>
 
       {showRecent && (
-        <div className="mb-4 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-800">Recent conversations</h2>
-            <button type="button" onClick={startNewChat} className="text-xs text-blue-600 hover:underline">
-              Start new chat
-            </button>
-          </div>
-          {sessions.length === 0 ? (
-            <p className="py-3 text-sm text-slate-500">No saved conversations yet.</p>
-          ) : (
-            <div className="grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
-              {sessions.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => openSession(session.id)}
-                  className={`rounded-lg border px-3 py-2 text-left hover:bg-blue-50 ${
-                    session.id === sessionId ? "border-blue-500 bg-blue-50" : "border-slate-200"
-                  }`}
-                >
-                  <span className="block truncate text-sm font-medium text-slate-700">{session.title}</span>
-                  <span className="text-xs capitalize text-slate-400">{session.session_type} · {session.message_count} messages</span>
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-3"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setShowRecent(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recent-conversations-title"
+            className="max-h-[80dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-blue-100 bg-white p-4 shadow-xl"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="recent-conversations-title" className="text-sm font-semibold text-slate-800">
+                Recent conversations
+              </h2>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={startNewChat} className="text-xs font-medium text-blue-600 hover:underline">
+                  Start new chat
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setShowRecent(false)}
+                  aria-label="Close recent conversations"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
-          )}
+            {sessions.length === 0 ? (
+              <p className="py-3 text-sm text-slate-500">No saved conversations yet.</p>
+            ) : (
+              <div className="grid max-h-[60dvh] gap-2 overflow-y-auto sm:max-h-40 sm:grid-cols-2">
+                {sessions.map((session) => (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => openSession(session.id)}
+                    className={`min-h-14 rounded-lg border px-3 py-2 text-left hover:bg-blue-50 ${
+                      session.id === sessionId ? "border-blue-500 bg-blue-50" : "border-slate-200"
+                    }`}
+                  >
+                    <span className="block truncate text-sm font-medium text-slate-700">{session.title}</span>
+                    <span className="text-xs capitalize text-slate-400">{session.session_type} · {session.message_count} messages</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4">
+      <div className="mb-3 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-1 pr-2 sm:mb-4">
         {messages.map((msg, idx) => (
           <div
             key={idx}
@@ -268,7 +311,7 @@ export default function Chat() {
             )}
 
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+              className={`max-w-[88%] break-words rounded-2xl px-3 py-3 text-sm leading-relaxed sm:max-w-[80%] sm:px-4 ${
                 msg.role === "user"
                   ? "bg-blue-600 text-white rounded-br-md"
                   : "bg-white border border-blue-100 text-slate-700 rounded-bl-md shadow-sm"
@@ -317,8 +360,13 @@ export default function Chat() {
             <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center">
               <Bot size={18} />
             </div>
-            <div className="bg-white border border-blue-100 rounded-2xl px-4 py-3 shadow-sm">
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 shadow-sm"
+            >
               <Loader2 className="animate-spin text-blue-600" size={18} />
+              <span className="text-sm text-slate-600">AI is thinking...</span>
             </div>
           </div>
         )}
@@ -326,13 +374,13 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <form onSubmit={sendMessage} className="relative">
+      <form onSubmit={sendMessage} className="relative shrink-0 pb-[env(safe-area-inset-bottom)]">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about your notes, registration, locations, emergencies..."
-          className="w-full pl-5 pr-14 py-4 rounded-2xl border border-blue-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none shadow-sm"
+          className="min-h-12 w-full rounded-2xl border border-blue-200 py-3 pl-4 pr-14 text-base outline-none shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:py-4 sm:pl-5"
         />
         {loading ? (
           <button
@@ -356,6 +404,76 @@ export default function Chat() {
           </button>
         )}
       </form>
+
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-[70] flex items-end bg-slate-950/40 p-3 sm:hidden"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setShowSettings(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chat-settings-title"
+            className="max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl"
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h2 id="chat-settings-title" className="text-lg font-semibold text-slate-900">
+                Chat settings
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                aria-label="Close chat settings"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <label className="block text-sm font-medium text-slate-700">
+                AI provider
+                <select
+                  value={provider}
+                  onChange={(e) => {
+                    const nextProvider = e.target.value;
+                    setProvider(nextProvider);
+                    setModel(nextProvider === "groq" ? "openai/gpt-oss-20b" : "gemma2:2b");
+                  }}
+                  disabled={loading}
+                  className="mt-1.5 min-h-12 w-full rounded-xl border border-blue-100 bg-white px-3 text-base"
+                >
+                  <option value="ollama">Ollama</option>
+                  <option value="groq">Groq</option>
+                </select>
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                AI model
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  disabled={loading}
+                  className="mt-1.5 min-h-12 w-full rounded-xl border border-blue-100 bg-white px-3 text-base"
+                >
+                  {provider === "groq" ? (
+                    <option value="openai/gpt-oss-20b">GPT OSS 20B</option>
+                  ) : (
+                    <option value="gemma2:2b">Gemma 2 2B</option>
+                  )}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="min-h-12 w-full rounded-xl bg-blue-600 px-4 font-semibold text-white hover:bg-blue-700"
+              >
+                Done
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

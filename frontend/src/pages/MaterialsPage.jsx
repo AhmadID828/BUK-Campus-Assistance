@@ -2,14 +2,16 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useMaterialUpload } from "../context/MaterialUploadContext";
 import { API_BASE_URL } from "../config";
 import useApprovalGuard from "../hooks/useApprovalGuard";
 import PageHeader from "../components/PageHeader";
 import LockedFeatureModal from "../components/LockedFeatureModal";
-import { FileText, Loader2, Search, Sparkles, Upload } from "lucide-react";
+import { FileText, Search, Sparkles, Upload } from "lucide-react";
 
 const MaterialsPage = () => {
   const { token } = useAuth();
+  const { startUpload, upload, uploadRevision } = useMaterialUpload();
   const { guard, showLockedModal, lockedFeatureName, closeModal } =
     useApprovalGuard();
 
@@ -19,13 +21,25 @@ const MaterialsPage = () => {
   const [success, setSuccess] = useState("");
   const [warning, setWarning] = useState("");
   const [search, setSearch] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [summarizingId, setSummarizingId] = useState(null);
   const [summaryProvider, setSummaryProvider] = useState("groq");
   const [file, setFile] = useState(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
+
+  const handleFileChange = (event) => {
+    const selectedFile = event.target.files?.[0] ?? null;
+    if (selectedFile && selectedFile.size > 2 * 1024 * 1024) {
+      setFile(null);
+      setError("This file is larger than 2 MB. Choose a smaller file.");
+      event.target.value = "";
+      return;
+    }
+
+    setError("");
+    setFile(selectedFile);
+  };
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -52,9 +66,9 @@ const MaterialsPage = () => {
 
   useEffect(() => {
     fetchMaterials();
-  }, [token]);
+  }, [token, uploadRevision]);
 
-  const handleUpload = guard(async (event) => {
+  const handleUpload = guard((event) => {
     event.preventDefault();
 
     if (!file) {
@@ -62,54 +76,18 @@ const MaterialsPage = () => {
       return;
     }
 
-    setUploading(true);
+    if (!startUpload(file, title, subject)) {
+      setError("An upload is already in progress, or your session has expired.");
+      return;
+    }
+
     setError("");
     setSuccess("");
     setWarning("");
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("title", title.trim() || file.name);
-      formData.append("subject", subject.trim() || "General");
-
-      const response = await fetch(`${API_BASE_URL}/materials/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Upload failed");
-      }
-
-      const uploadedMaterial = await response.json();
-      setMaterials((currentMaterials) => [
-        {
-          id: uploadedMaterial.material_id,
-          title: uploadedMaterial.title,
-          subject: uploadedMaterial.subject,
-        },
-        ...currentMaterials.filter(
-          (material) => material.id !== uploadedMaterial.material_id,
-        ),
-      ].slice(0, 10));
-      setSuccess(
-        uploadedMaterial.rag_indexed === false
-          ? `"${uploadedMaterial.title}" was uploaded successfully.`
-          : `"${uploadedMaterial.title}" uploaded successfully and is ready to use.`,
-      );
-      setWarning(uploadedMaterial.indexing_warning || "");
-      setFile(null);
-      setFileInputKey((key) => key + 1);
-      setTitle("");
-      setSubject("");
-    } catch (uploadError) {
-      setError(uploadError.message);
-    } finally {
-      setUploading(false);
-    }
+    setFile(null);
+    setFileInputKey((key) => key + 1);
+    setTitle("");
+    setSubject("");
   }, "Study Materials Upload");
 
   const handleSummarize = guard(async (materialId) => {
@@ -190,7 +168,6 @@ const MaterialsPage = () => {
           <input
             type="text"
             value={title}
-            disabled={uploading}
             onChange={(event) => setTitle(event.target.value)}
             className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
             placeholder="e.g. Software Engineering Notes"
@@ -203,7 +180,6 @@ const MaterialsPage = () => {
           <input
             type="text"
             value={subject}
-            disabled={uploading}
             onChange={(event) => setSubject(event.target.value)}
             className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
             placeholder="e.g. SWE401"
@@ -217,19 +193,21 @@ const MaterialsPage = () => {
             key={fileInputKey}
             type="file"
             accept=".pdf,.docx,.pptx"
-            disabled={uploading}
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            onChange={handleFileChange}
             className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
           />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            PDF, DOCX or PPTX · Maximum file size: 2 MB
+          </p>
         </div>
         <div className="md:col-span-2">
           <button
             type="submit"
-            disabled={uploading}
+            disabled={upload?.status === "uploading"}
             className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
           >
             <Upload className="w-4 h-4" />
-            {uploading ? "Uploading..." : "Upload Material"}
+            {upload?.status === "uploading" ? "Uploading in background..." : "Upload Material"}
           </button>
         </div>
       </form>
@@ -299,35 +277,6 @@ const MaterialsPage = () => {
               </button>
             </div>
           ))}
-        </div>
-      )}
-
-      {uploading && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="material-upload-title"
-          aria-describedby="material-upload-description"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        >
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl dark:bg-gray-800">
-            <Loader2
-              aria-hidden="true"
-              className="mx-auto mb-4 h-10 w-10 animate-spin text-amber-500"
-            />
-            <h2
-              id="material-upload-title"
-              className="text-lg font-semibold text-gray-900 dark:text-white"
-            >
-              Uploading your material
-            </h2>
-            <p
-              id="material-upload-description"
-              className="mt-2 text-sm text-gray-600 dark:text-gray-300"
-            >
-              Please wait while we save the file and prepare it for studying. This can take a little while.
-            </p>
-          </div>
         </div>
       )}
 

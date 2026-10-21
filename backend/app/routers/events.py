@@ -74,6 +74,43 @@ async def get_events(
         ]
     }
 
+# ========== RSVP STATISTICS (Admin) ==========
+@router.get("/admin/rsvp-statistics")
+async def get_rsvp_statistics(
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(EventRSVP, User)
+        .join(User, User.id == EventRSVP.user_id)
+        .order_by(EventRSVP.created_at.desc())
+        .all()
+    )
+
+    statistics = {}
+    for rsvp, user in rows:
+        event_id = rsvp.event_id
+        if event_id not in statistics:
+            statistics[event_id] = {
+                "counts": {"going": 0, "maybe": 0, "not_going": 0},
+                "rsvps": [],
+            }
+
+        if rsvp.status in statistics[event_id]["counts"]:
+            statistics[event_id]["counts"][rsvp.status] += 1
+        statistics[event_id]["rsvps"].append({
+            "id": rsvp.id,
+            "status": rsvp.status,
+            "user": {
+                "id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "registration_number": user.registration_number,
+            },
+        })
+
+    return {"events": statistics}
+
 # ========== UPDATE EVENT (Admin) ==========
 @router.put("/{event_id}")
 async def update_event(

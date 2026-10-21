@@ -16,7 +16,7 @@ from app.ai.rag_service import RAGService
 from app.models.faq import FAQ
 from app.models.study_material import StudyMaterial
 from app.models.user import User
-from app.routers import admin, auth, chat, emergency, faqs, materials, planner, quiz
+from app.routers import admin, auth, chat, emergency, events, faqs, materials, planner, quiz
 from app.schemas.user import AdminCreate, UserCreate, UserLogin
 from app.utils.auth import password_validation_errors
 from app.utils.dependencies import get_current_user, get_super_admin
@@ -896,8 +896,8 @@ class QuizTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item["is_correct"] for item in review], [True, False, False])
 
 
-class UploadIndexingTests(unittest.IsolatedAsyncioTestCase):
-    async def test_upload_response_surfaces_rag_indexing_failure(self):
+class UploadIndexingTests(unittest.TestCase):
+    def test_upload_response_surfaces_rag_indexing_failure(self):
         class FakeDB:
             def add(self, material):
                 self.material = material
@@ -920,7 +920,7 @@ class UploadIndexingTests(unittest.IsolatedAsyncioTestCase):
                 patch.object(materials, "update_search_vector"),
                 self.assertLogs("app.routers.materials", level="ERROR"),
             ):
-                result = await materials.upload_material(
+                result = materials.upload_material(
                     file=upload_file,
                     title="Lecture",
                     subject="CS201",
@@ -930,6 +930,78 @@ class UploadIndexingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(result["rag_indexed"])
         self.assertIn("AI search indexing failed", result["indexing_warning"])
+
+    def test_upload_rejects_files_larger_than_two_megabytes(self):
+        class FakeDB:
+            def add(self, material):
+                self.fail("Oversized uploads must not be persisted")
+
+        with tempfile.TemporaryDirectory() as directory:
+            upload_file = UploadFile(
+                filename="large.pdf",
+                file=BytesIO(b"x" * (materials.MAX_UPLOAD_SIZE + 1)),
+            )
+            with patch.object(materials, "UPLOAD_DIR", directory):
+                with self.assertRaises(HTTPException) as raised:
+                    materials.upload_material(
+                        file=upload_file,
+                        title="Large document",
+                        subject="CS201",
+                        user=SimpleNamespace(id=2, full_name="Student"), # type: ignore
+                        db=FakeDB(), # type: ignore
+                    )
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
+        self.assertEqual(raised.exception.status_code, 413)
+        self.assertEqual(raised.exception.detail, "Material file must be 2 MB or smaller.")
+
+
+class EventRsvpStatisticsTests(unittest.TestCase):
+    def test_admin_statistics_group_counts_and_names_by_event(self):
+        rows = [
+            (
+                SimpleNamespace(id=1, event_id=8, status="going"),
+                SimpleNamespace(id=3, full_name="Ada Student", email="ada@example.test", registration_number="A1"),
+            ),
+            (
+                SimpleNamespace(id=2, event_id=8, status="maybe"),
+                SimpleNamespace(id=4, full_name="Ben Student", email="ben@example.test", registration_number="B2"),
+            ),
+            (
+                SimpleNamespace(id=3, event_id=8, status="going"),
+                SimpleNamespace(id=5, full_name="Cy Student", email="cy@example.test", registration_number="C3"),
+            ),
+        ]
+
+        class FakeQuery:
+            def join(self, *args):
+                return self
+
+            def order_by(self, *args):
+                return self
+
+            def all(self):
+                return rows
+
+        class FakeDB:
+            def query(self, *args):
+                return FakeQuery()
+
+        result = asyncio.run(
+            events.get_rsvp_statistics(
+                admin=SimpleNamespace(role="admin"), # type: ignore
+                db=FakeDB(), # type: ignore
+            )
+        )
+
+        self.assertEqual(
+            result["events"][8]["counts"],
+            {"going": 2, "maybe": 1, "not_going": 0},
+        )
+        self.assertEqual(
+            [item["user"]["full_name"] for item in result["events"][8]["rsvps"]],
+            ["Ada Student", "Ben Student", "Cy Student"],
+        )
 
 
 class EmergencyBroadcastTests(unittest.IsolatedAsyncioTestCase):
