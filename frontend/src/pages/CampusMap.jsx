@@ -47,7 +47,7 @@ function LocateButton({ onLocate }) {
     <button
       type="button"
       onClick={onLocate}
-      className="absolute right-3 top-3 z-[400] flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-md transition hover:bg-blue-50"
+      className="absolute right-2 top-2 z-[400] flex min-h-10 items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-md transition hover:bg-blue-50 sm:right-3 sm:top-3"
     >
       <LocateFixed className="h-4 w-4 text-blue-600" />
       My location
@@ -92,6 +92,22 @@ function getStepInstruction(step) {
   if (maneuver.type === "merge") return `Merge ${modifier || "ahead"}${road}`;
   if (maneuver.type === "fork") return `Keep ${modifier || "ahead"}${road}`;
   return `${modifier ? `Go ${modifier}` : "Continue"}${road}`;
+}
+
+function MapSizeInvalidator() {
+  const map = useMap();
+
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize({ pan: false });
+    });
+    resizeObserver.observe(map.getContainer());
+    map.invalidateSize({ pan: false });
+
+    return () => resizeObserver.disconnect();
+  }, [map]);
+
+  return null;
 }
 
 function RoutingControl({ from, to, onError, onRoute }) {
@@ -420,7 +436,7 @@ function CampusMap({
 
         <div className={routeDetails ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : ""}>
           {routeDetails && (
-            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 lg:col-span-1 lg:col-start-3 lg:row-start-1">
+            <div className="order-2 min-w-0 rounded-xl border border-blue-100 bg-blue-50 p-3 sm:p-4 lg:order-2 lg:col-span-1 lg:col-start-3 lg:row-start-1">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h3 className="font-semibold text-slate-800">Directions to {destinationName}</h3>
@@ -488,7 +504,7 @@ function CampusMap({
               </button>
             </div>
 
-            <ol className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1" aria-label="Route steps">
+            <ol className="mt-3 max-h-40 space-y-2 overflow-y-auto pr-1 sm:max-h-56" aria-label="Route steps">
               {routeDetails.steps.map((step, index) => (
                 <li
                   key={`${step.instruction}-${index}`}
@@ -518,13 +534,14 @@ function CampusMap({
             </div>
           )}
 
-        <div className={`relative h-[55dvh] min-h-[320px] max-h-[560px] overflow-hidden rounded-xl sm:h-[min(65vh,600px)] ${routeDetails ? "lg:col-span-2 lg:col-start-1 lg:row-start-1" : ""}`}>
+        <div className={`relative order-1 h-[min(52dvh,440px)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-xl sm:h-[min(65vh,600px)] ${routeDetails ? "lg:order-1 lg:col-span-2 lg:col-start-1 lg:row-start-1" : ""}`}>
           <LocateButton onLocate={handleLocate} />
           <MapContainer
             center={BUK_CENTER}
             zoom={DEFAULT_ZOOM}
             style={{ height: "100%", width: "100%" }}
           >
+            <MapSizeInvalidator />
             {selectedLocation && <ChangeView location={selectedLocation} />}
             <UserLocationView position={userPosition} following={following} />
             <TileLayer

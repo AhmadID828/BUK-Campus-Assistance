@@ -60,7 +60,7 @@ const StudentLayout = () => {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-sky-50 dark:bg-gray-900 flex">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-sky-50 dark:bg-gray-900">
       {/* Sidebar */}
       <aside className="w-64 bg-white dark:bg-gray-800 border-r border-blue-100 dark:border-gray-700 hidden md:flex flex-col">
         <div className="p-5 border-b border-blue-100 dark:border-gray-700">
@@ -193,7 +193,7 @@ const StudentLayout = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <PendingApprovalBanner user={user} />
 
         <header className="bg-white dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 px-4 py-4 sm:px-6 flex items-center gap-3">
@@ -217,10 +217,16 @@ const StudentLayout = () => {
         </header>
 
         
-        <main className="flex-1 p-4 pb-8 sm:p-6 lg:p-8 overflow-y-auto">
+        <main
+          className={`min-h-0 flex-1 ${
+            location.pathname === "/chat"
+              ? "overflow-hidden p-0"
+              : "overflow-y-auto p-4 pb-8 sm:p-6 lg:p-8"
+          }`}
+        >
           <Outlet />
         </main>
-        <Footer />
+        {location.pathname !== "/chat" && <Footer />}
       </div>
 
     </div>

@@ -81,7 +81,7 @@ const MapPage = () => {
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-3 py-4 pb-24 sm:px-4 sm:py-6">
+    <div className="mx-auto w-full min-w-0 max-w-6xl px-2 py-3 pb-24 sm:px-4 sm:py-6">
       <div className="mb-5">
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
           <MapPin className="text-blue-600" size={26} />
@@ -110,7 +110,7 @@ const MapPage = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-blue-100 p-4 shadow-sm mb-5">
+      <div className="mb-4 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm sm:mb-5 sm:p-4">
         <div className="relative mb-3">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
@@ -140,7 +140,7 @@ const MapPage = () => {
 
       <div className="mb-5 bg-white rounded-2xl border border-blue-100 overflow-hidden shadow-sm">
         {loading ? (
-          <div className="flex h-[55dvh] min-h-[320px] max-h-[560px] items-center justify-center text-slate-500 sm:h-[min(65vh,600px)]">
+          <div className="flex h-[min(52dvh,440px)] min-h-[280px] items-center justify-center text-slate-500 sm:h-[min(65vh,600px)]">
             Loading map...
           </div>
         ) : (

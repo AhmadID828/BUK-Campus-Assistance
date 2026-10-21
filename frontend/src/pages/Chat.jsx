@@ -151,22 +151,22 @@ export default function Chat() {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-0 w-full max-w-6xl min-w-0 flex-col px-0 py-2 sm:h-[calc(100dvh-11rem)] sm:px-2 sm:py-4">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl min-w-0 flex-col px-2 pb-[env(safe-area-inset-bottom)] pt-2 sm:px-4 sm:py-4">
       {/* Header */}
-      <div className="mb-3 shrink-0 space-y-3 sm:mb-4">
-        <div className="flex min-w-0 items-center justify-between gap-2">
+      <div className="mb-2 shrink-0 space-y-2 border-b border-blue-100 pb-2 sm:mb-4 sm:space-y-3 sm:border-0 sm:pb-0">
+        <div className="flex min-w-0 items-center justify-between gap-1.5">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-slate-800 sm:text-xl">AI Assistant</h1>
-            <p className="truncate text-xs text-slate-500 sm:text-sm">
+            <h1 className="text-base font-bold text-slate-800 sm:text-xl">AI Assistant</h1>
+            <p className="hidden truncate text-xs text-slate-500 sm:block sm:text-sm">
               Academic help + Campus information
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button
               type="button"
               onClick={() => setShowRecent(true)}
-              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-50 px-2.5 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 sm:px-3"
               aria-label="Open recent conversations"
             >
               <MessageSquare size={16} />
@@ -175,7 +175,7 @@ export default function Chat() {
             <button
               type="button"
               onClick={startNewChat}
-              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="flex min-h-10 items-center gap-1 rounded-xl bg-blue-600 px-2.5 py-2 text-sm font-medium text-white hover:bg-blue-700 sm:gap-1.5 sm:px-3"
             >
               <Plus size={16} />
               <span>New</span>
@@ -298,20 +298,20 @@ export default function Chat() {
       )}
 
       {/* Messages */}
-      <div className="mb-3 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-1 pr-2 sm:mb-4">
+      <div className="mb-2 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-0.5 pr-1 sm:mb-4 sm:space-y-4 sm:px-1 sm:pr-2">
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex min-w-0 items-end gap-2 sm:gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             {msg.role === "assistant" && (
-              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0">
-                <Bot size={18} />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white sm:h-9 sm:w-9">
+                <Bot size={16} className="sm:h-[18px] sm:w-[18px]" />
               </div>
             )}
 
             <div
-              className={`max-w-[88%] break-words rounded-2xl px-3 py-3 text-sm leading-relaxed sm:max-w-[80%] sm:px-4 ${
+              className={`min-w-0 max-w-[calc(100%-2.5rem)] break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2.5 text-sm leading-relaxed sm:max-w-[80%] sm:px-4 sm:py-3 ${
                 msg.role === "user"
                   ? "bg-blue-600 text-white rounded-br-md"
                   : "bg-white border border-blue-100 text-slate-700 rounded-bl-md shadow-sm"
@@ -348,22 +348,22 @@ export default function Chat() {
             </div>
 
             {msg.role === "user" && (
-              <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center flex-shrink-0">
-                <User size={18} />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 sm:h-9 sm:w-9">
+                <User size={16} className="sm:h-[18px] sm:w-[18px]" />
               </div>
             )}
           </div>
         ))}
 
         {loading && (
-          <div className="flex gap-3">
-            <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center">
-              <Bot size={18} />
+          <div className="flex min-w-0 items-end gap-2 sm:gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white sm:h-9 sm:w-9">
+              <Bot size={16} className="sm:h-[18px] sm:w-[18px]" />
             </div>
             <div
               role="status"
               aria-live="polite"
-              className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white px-4 py-3 shadow-sm"
+              className="flex min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 py-2.5 shadow-sm sm:gap-3 sm:px-4 sm:py-3"
             >
               <Loader2 className="animate-spin text-blue-600" size={18} />
               <span className="text-sm text-slate-600">AI is thinking...</span>
@@ -374,13 +374,13 @@ export default function Chat() {
       </div>
 
       {/* Input */}
-      <form onSubmit={sendMessage} className="relative shrink-0 pb-[env(safe-area-inset-bottom)]">
+      <form onSubmit={sendMessage} className="relative shrink-0 pb-2 sm:pb-0">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about your notes, registration, locations, emergencies..."
-          className="min-h-12 w-full rounded-2xl border border-blue-200 py-3 pl-4 pr-14 text-base outline-none shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:py-4 sm:pl-5"
+          placeholder="Ask your study or campus question..."
+          className="min-h-12 w-full rounded-2xl border border-blue-200 py-3 pl-3 pr-14 text-base outline-none shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:pl-5 sm:py-4"
         />
         {loading ? (
           <button
