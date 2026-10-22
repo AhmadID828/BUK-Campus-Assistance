@@ -192,6 +192,7 @@ function CampusMap({
   locations = [],
   selectedLocation = null,
   onSelectLocation,
+  onClearSelection,
 }) {
   const [destination, setDestination] = useState(null);
   const [routeOrigin, setRouteOrigin] = useState(null);
@@ -415,22 +416,35 @@ function CampusMap({
         )}
 
         {selectedLocation && (
-          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-blue-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-3 flex min-w-0 flex-col gap-3 rounded-xl border border-blue-100 bg-white p-3 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
             <div className="min-w-0">
               <p className="font-semibold text-slate-800">{selectedLocation.name}</p>
               <p className="mt-0.5 text-sm text-slate-500">
                 {selectedLocation.description || "Campus destination"}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => handleDirections(selectedLocation)}
-              disabled={routeLoading}
-              className="inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
-            >
-              <Navigation className="h-4 w-4" />
-              {routeLoading ? "Finding walking route..." : "Get walking directions"}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => handleDirections(selectedLocation)}
+                disabled={routeLoading}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60 sm:px-4"
+              >
+                <Navigation className="h-4 w-4" />
+                {routeLoading ? "Finding route..." : "Get directions"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearRoute();
+                  onClearSelection?.();
+                }}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:px-4"
+              >
+                <X className="h-4 w-4" />
+                Show all places
+              </button>
+            </div>
           </div>
         )}
 

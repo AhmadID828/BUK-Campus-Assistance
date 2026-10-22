@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, Building2, Home, MapPin, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, Building2, Home, MapPin, Search, X } from "lucide-react";
 import { API_BASE_URL } from "../config";
 import { useAuth } from "../context/AuthContext";
 import CampusMap from "./CampusMap";
@@ -30,6 +30,7 @@ const MapPage = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const mapSectionRef = useRef(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -79,6 +80,18 @@ const MapPage = () => {
 
     return matchesCategory && matchesSearch;
   });
+  const searchMatches =
+    searchTerm &&
+    selectedLocation?.name?.toLowerCase() !== searchTerm
+      ? filteredLocations.slice(0, 6)
+      : [];
+
+  const focusLocation = (location) => {
+    setSelectedLocation(location);
+    setSearch(location.name);
+    mapSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const visibleLocations = selectedLocation ? [selectedLocation] : filteredLocations;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl px-2 py-3 pb-24 sm:px-4 sm:py-6">
@@ -110,18 +123,79 @@ const MapPage = () => {
         </div>
       )}
 
-      <div className="mb-4 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm sm:mb-5 sm:p-4">
-        <div className="relative mb-3">
+      <div className="relative z-[500] mb-4 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm sm:mb-5 sm:p-4">
+        <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
+            role="combobox"
+            aria-expanded={searchMatches.length > 0}
+            aria-controls="campus-location-search-results"
+            aria-autocomplete="list"
             type="text"
             placeholder="Search for a building or place..."
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+            onChange={(event) => {
+              const nextSearch = event.target.value;
+              const exactMatch = locations.find(
+                (location) =>
+                  location.name?.trim().toLowerCase() ===
+                  nextSearch.trim().toLowerCase(),
+              );
+              setSearch(nextSearch);
+              setSelectedLocation(exactMatch || null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && searchMatches.length > 0) {
+                event.preventDefault();
+                focusLocation(searchMatches[0]);
+              }
+              if (event.key === "Escape") setSearch("");
+            }}
+            className="min-h-11 w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-11 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:text-sm"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setSelectedLocation(null);
+              }}
+              aria-label="Clear campus location search"
+              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            >
+              <X size={16} />
+            </button>
+          )}
+          {searchMatches.length > 0 && (
+            <div
+              id="campus-location-search-results"
+              role="listbox"
+              className="absolute left-0 right-0 top-full z-[600] mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+            >
+              {searchMatches.map((location) => (
+                <button
+                  key={location.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selectedLocation?.id === location.id}
+                  onClick={() => focusLocation(location)}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-blue-50"
+                >
+                  <MapPin size={17} className="shrink-0 text-blue-600" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-slate-800">
+                      {location.name}
+                    </span>
+                    <span className="block truncate text-xs capitalize text-slate-500">
+                      {location.category || "Campus location"}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {categories.map((category) => (
             <button
               key={category.id}
@@ -138,16 +212,20 @@ const MapPage = () => {
         </div>
       </div>
 
-      <div className="mb-5 bg-white rounded-2xl border border-blue-100 overflow-hidden shadow-sm">
+      <div ref={mapSectionRef} className="mb-5 scroll-mt-4 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
         {loading ? (
           <div className="flex h-[min(52dvh,440px)] min-h-[280px] items-center justify-center text-slate-500 sm:h-[min(65vh,600px)]">
             Loading map...
           </div>
         ) : (
           <CampusMap
-            locations={filteredLocations}
+            locations={visibleLocations}
             selectedLocation={selectedLocation}
             onSelectLocation={setSelectedLocation}
+            onClearSelection={() => {
+              setSelectedLocation(null);
+              setSearch("");
+            }}
           />
         )}
       </div>
@@ -155,26 +233,29 @@ const MapPage = () => {
       <div className="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-blue-50">
             <h2 className="font-semibold text-slate-800 text-sm">
-              Available locations ({filteredLocations.length})
+              {selectedLocation
+                ? "Selected location"
+                : `Available locations (${filteredLocations.length})`}
             </h2>
           </div>
           <div className="grid grid-cols-1 divide-y divide-slate-50 md:grid-cols-2 lg:grid-cols-3">
-            {!loading && filteredLocations.length === 0 ? (
+            {!loading && visibleLocations.length === 0 ? (
               <p className="col-span-full text-center text-sm text-slate-500 py-10">
                 No locations found
               </p>
             ) : (
-              filteredLocations.map((location) => {
+              visibleLocations.map((location) => {
                 const Icon =
                   categoryIcons[location.category?.toLowerCase()] || MapPin;
 
                 return (
                   <button
                     key={location.id}
-                    onClick={() => setSelectedLocation(location)}
+                    onClick={() => focusLocation(location)}
                     className={`w-full text-left px-4 py-3.5 hover:bg-blue-50 transition flex items-start gap-3 ${
                       selectedLocation?.id === location.id ? "bg-blue-50" : ""
                     }`}
+                    aria-pressed={selectedLocation?.id === location.id}
                   >
                     <Icon className="w-5 h-5 text-blue-600 flex-shrink-0" />
                     <span className="min-w-0">
