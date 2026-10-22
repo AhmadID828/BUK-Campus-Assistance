@@ -97,9 +97,12 @@ class RAGService:
 
         try:
             results = self.get_user_vectorstore(user_id).similarity_search(query, k=k)
-        except Exception:
+        except Exception as exc:
             logger.exception("Study-material retrieval failed for user %s", user_id)
-            return "No relevant study materials found.", []
+            return (
+                "No relevant study materials found. AI indexing is unavailable in this environment.",
+                [{"type": "study_material", "title": "AI indexing unavailable", "subject": "", "excerpt": str(exc)[:200]}],
+            )
 
         if not results:
             return "No relevant study materials found.", []

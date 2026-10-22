@@ -109,6 +109,7 @@ def upload_material(
     db.refresh(material)
 
     rag_indexed = True
+    indexing_warning = None
     try:
         rag_service.add_material(
             user_id=user.id, # type: ignore
@@ -117,13 +118,18 @@ def upload_material(
             content=extracted_text,
             subject=course.course_code, # type: ignore
         )
-    except Exception:
+    except Exception as exc:
         rag_indexed = False
+        indexing_warning = (
+            "Semantic AI indexing failed. Study chat can still use this material through full-text search. "
+            "Ask an administrator to check the embedding provider to restore semantic search."
+        )
         logger.exception(
             "RAG indexing failed for uploaded material %s owned by user %s",
             material.id,
             user.id,
         )
+        logger.warning("RAG indexing failure context: %s", exc)
 
     update_search_vector(db, material.id) # type: ignore
 
@@ -137,14 +143,8 @@ def upload_material(
         "course_title": course.course_title,
         "owner": user.full_name,
         "rag_indexed": rag_indexed,
-        "indexing_warning": (
-            None
-            if rag_indexed
-            else (
-                "The file was uploaded, but AI search indexing failed. "
-                "It may not be used as context for study-chat answers."
-            )
-        ),
+        "full_text_indexed": True,
+        "indexing_warning": indexing_warning,
     }
 
 

@@ -37,9 +37,7 @@ export default function WelcomePage() {
     <main className="min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-indigo-100 text-slate-800">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
         <Link to="/" className="flex items-center gap-3" aria-label="BUK Campus Assistant System home">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-            <BookOpen size={22} />
-          </span>
+          <img src="/BUk%20logo%202.webp" alt="" className="h-11 w-11 rounded-2xl bg-white p-0.5 object-contain shadow-lg shadow-blue-200" />
           <span className="font-bold tracking-tight">BUK Campus Assistant System</span>
         </Link>
         <nav className="flex items-center gap-3">
@@ -90,6 +88,17 @@ export default function WelcomePage() {
         <div className="relative">
           <div className="absolute -inset-6 rounded-[2.5rem] bg-gradient-to-br from-blue-200/60 to-indigo-200/40 blur-2xl" />
           <div className="relative rounded-[2rem] border border-white bg-white/90 p-5 shadow-2xl shadow-blue-900/10 sm:p-7">
+            <div className="relative mb-6 h-40 overflow-hidden rounded-2xl">
+              <img
+                src="/BUk%20main%20gate.jpg"
+                alt="Main entrance to Bayero University Kano"
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
+              <p className="absolute bottom-3 left-4 text-sm font-semibold text-white">
+                Welcome to Bayero University Kano
+              </p>
+            </div>
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-800">A better study routine</p>

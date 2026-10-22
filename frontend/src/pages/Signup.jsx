@@ -104,11 +104,21 @@ function Signup() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-8">
       <div className="w-full max-w-lg px-4">
         <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:p-8">
+          <Link to="/" className="mx-auto mb-3 flex w-fit flex-col items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label="BUK Campus Assistant System home">
+            <img
+              src="/BUk%20logo%202.webp"
+              alt="Bayero University Kano logo"
+              className="h-14 w-14 rounded-xl bg-white p-1 object-contain"
+            />
+            <span className="mt-2 text-center text-sm font-medium text-blue-700 dark:text-blue-300">
+              BUK Campus Assistant System
+            </span>
+          </Link>
           <h1 className="mb-2 text-center text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
             Create Account
           </h1>
           <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
-            BUK Campus Study Assistant
+            Create your BUK student account
           </p>
 
           {error && (

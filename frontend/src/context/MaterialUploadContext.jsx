@@ -66,9 +66,11 @@ export function MaterialUploadProvider({ children }) {
           status: "success",
           filename: data.title || file.name,
           message:
-            data.rag_indexed === false
-              ? "Uploaded, but indexing did not finish."
-              : "Uploaded and ready to use.",
+            data.rag_indexed === false && data.full_text_indexed
+              ? "Uploaded and available to study chat through full-text search."
+              : data.rag_indexed === false
+                ? "Uploaded, but indexing did not finish."
+                : "Uploaded and ready to use.",
           warning: data.indexing_warning || "",
         });
         setUploadRevision((revision) => revision + 1);

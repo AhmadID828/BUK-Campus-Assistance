@@ -67,8 +67,13 @@ const AdminLayout = () => {
       {/* Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col bg-sky-950 text-white md:flex">
         <div className="p-5 border-b border-sky-800">
-          <h1 className="text-lg font-bold leading-tight text-blue-300">BUK Campus Assistant</h1>
-          <p className="mt-1 text-xs text-sky-200">Admin control panel</p>
+          <Link to="/" className="flex w-fit items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="BUK Campus Assistant System home">
+            <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-10 w-10 rounded-lg bg-white object-contain p-0.5 ring-2 ring-sky-700" />
+            <div>
+              <h1 className="text-lg font-bold leading-tight text-blue-300">BUK Campus Assistant</h1>
+              <p className="mt-1 text-xs text-sky-200">Admin control panel</p>
+            </div>
+          </Link>
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -100,10 +105,13 @@ const AdminLayout = () => {
           />
           <aside className="absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col bg-sky-950 text-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-sky-800 p-5">
-              <div>
-                <h1 className="text-lg font-bold leading-tight text-blue-300">BUK Campus Assistant</h1>
-                <p className="mt-1 text-xs text-sky-200">Admin control panel</p>
-              </div>
+              <Link to="/" onClick={() => setMobileNavOpen(false)} className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="BUK Campus Assistant System home">
+                <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-10 w-10 rounded-lg bg-white object-contain p-0.5 ring-2 ring-sky-700" />
+                <div>
+                  <h1 className="text-lg font-bold leading-tight text-blue-300">BUK Campus Assistant</h1>
+                  <p className="mt-1 text-xs text-sky-200">Admin control panel</p>
+                </div>
+              </Link>
               <button
                 type="button"
                 aria-label="Close admin navigation"

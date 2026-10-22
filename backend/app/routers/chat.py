@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,7 @@ from app.ai.llm_service import GROQ_MODEL, OLLAMA_MODEL, llm_service
 from app.ai.rag_service import rag_service
 from app.database import get_db
 from app.models.chat import ChatMessage, ChatSession
+from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.schemas.user import ChatMessageCreate
 from app.utils.dependencies import require_approved_user
@@ -81,12 +83,57 @@ def answer_academic_question(
     question: str,
     provider: str,
     model: str | None,
+    db: Session | None = None,
 ) -> tuple[str, list[dict]]:
     context, sources = rag_service.search_with_sources(
         user.id,  # type: ignore[arg-type]
         question,
         k=3,
     )  # type: ignore[arg-type]
+    index_unavailable = any(
+        source.get("title") == "AI indexing unavailable" for source in sources
+    )
+    if db is not None and (not sources or index_unavailable):
+        ts_query = func.plainto_tsquery("english", question)
+        rank = func.ts_rank(StudyMaterial.search_vector, ts_query)
+        headline = func.ts_headline(
+            "english",
+            StudyMaterial.content,
+            ts_query,
+            "MaxWords=80, MinWords=25",
+        )
+        rows = (
+            db.query(StudyMaterial, rank, headline)
+            .filter(
+                StudyMaterial.owner_id == user.id,
+                StudyMaterial.search_vector.op("@@")(ts_query),
+            )
+            .order_by(rank.desc(), StudyMaterial.id.desc())
+            .limit(3)
+            .all()
+        )
+        if rows:
+            context_parts = []
+            sources = []
+            for material, _, excerpt in rows:
+                title = material.title or "Untitled material"
+                subject = material.subject or ""
+                label = f"{title} ({subject})" if subject else title
+                excerpt_text = str(excerpt or material.content or "").strip()
+                context_parts.append(f"From: {label}\n{excerpt_text}")
+                sources.append(
+                    {
+                        "type": "study_material",
+                        "title": title,
+                        "subject": subject,
+                        "excerpt": excerpt_text[:320],
+                    }
+                )
+            context = "\n\n".join(context_parts)
+        elif index_unavailable:
+            context = "No relevant study materials found."
+            sources = []
+
     prompt = f"""You are the BUK Campus Assistant System, a helpful academic assistant for Bayero University Kano students.
 First use the uploaded study-material context below to answer the question.
     If the context does not contain the answer, answer the student's actual question directly using your general knowledge.
@@ -166,7 +213,13 @@ def unified_ask(
         if session_type == "campus":
             answer, sources = answer_campus_question(db, content, provider, model)
         else:
-            answer, sources = answer_academic_question(current_user, content, provider, model)
+            answer, sources = answer_academic_question(
+                current_user,
+                content,
+                provider,
+                model,
+                db=db,
+            )
     except Exception as exc:
         db.rollback()
         logger.exception(

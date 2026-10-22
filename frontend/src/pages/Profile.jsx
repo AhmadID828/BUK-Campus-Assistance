@@ -113,7 +113,7 @@ function Profile() {
         <div className="bg-gradient-to-r from-blue-700 to-cyan-700 px-5 py-6 text-white sm:px-8">
           <p className="text-sm font-medium text-blue-100">Student account</p>
           <h2 className="mt-1 text-2xl font-bold">{profileData?.full_name || user?.full_name || "My account"}</h2>
-          <p className="mt-1 break-all text-sm text-blue-100">{profileData?.email || user?.email}</p>
+          <p className="mt-1 break-all text-sm text-blue-100">{profileData?.registration_number || user?.registration_number}</p>
         </div>
 
         <form onSubmit={handleSave} className="p-5 sm:p-8">

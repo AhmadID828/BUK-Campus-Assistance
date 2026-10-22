@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="BUK crest logo">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0d5bd7"/>
+      <stop offset="100%" stop-color="#0c3b8f"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#fce7a1"/>
+      <stop offset="100%" stop-color="#d6a646"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="72" fill="url(#bg)"/>
+  <circle cx="80" cy="80" r="60" fill="#f8fbff" opacity="0.96"/>
+  <circle cx="80" cy="80" r="54" fill="none" stroke="url(#gold)" stroke-width="6"/>
+  <path d="M80 34 L96 44 L96 71 L80 82 L64 71 L64 44 Z" fill="#0d5bd7" opacity="0.12"/>
+  <path d="M50 54 L80 36 L110 54 V92 L80 110 L50 92 Z" fill="none" stroke="#0c3b8f" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M58 65 H78 M78 65 V95 M78 95 H58 M102 65 H82 M82 65 V95 M82 95 H102" stroke="#0c3b8f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="80" y="101" text-anchor="middle" font-size="30" font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#0c3b8f" letter-spacing="2">BUK</text>
+  <circle cx="80" cy="80" r="72" fill="none" stroke="#d7b259" stroke-width="4" opacity="0.8"/>
+</svg>

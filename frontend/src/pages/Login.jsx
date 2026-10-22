@@ -62,12 +62,16 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 text-white mb-4 shadow-lg">
-            <BookOpen size={32} />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
-            BUK Campus Assistant System
-          </h1>
+          <Link to="/" className="inline-block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label="BUK Campus Assistant System home">
+            <img
+              src="/BUk%20logo%202.webp"
+              alt="Bayero University Kano logo"
+              className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white p-1 object-contain shadow-lg"
+            />
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
+              BUK Campus Assistant System
+            </h1>
+          </Link>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
             AI study and campus companion
           </p>

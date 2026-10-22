@@ -6,7 +6,7 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 from fastapi import HTTPException, UploadFile
@@ -739,6 +739,56 @@ class ChatTests(unittest.TestCase):
         self.assertIn("no more than 2 short sentences", generate.call_args.kwargs["message"])
         self.assertEqual(generate.call_args.kwargs["max_tokens"], 128)
 
+    def test_academic_chat_uses_full_text_fallback_when_vector_index_is_unavailable(self):
+        fake_db = SimpleNamespace()
+        with (
+            patch.object(
+                chat.rag_service,
+                "search_with_sources",
+                return_value=(
+                    "AI indexing is unavailable.",
+                    [{"type": "study_material", "title": "AI indexing unavailable"}],
+                ),
+            ),
+            patch.object(
+                chat,
+                "func",
+            ) as sqlalchemy_func,
+            patch.object(chat, "StudyMaterial") as study_material,
+            patch.object(chat.llm_service, "get_response", return_value="Answer") as generate,
+        ):
+            ts_query = object()
+            rank = object()
+            excerpt = "A graph is a set of vertices and edges."
+            sqlalchemy_func.plainto_tsquery.return_value = ts_query
+            sqlalchemy_func.ts_rank.return_value = rank
+            sqlalchemy_func.ts_headline.return_value = excerpt
+            study_material.search_vector.op.return_value = object()
+            material = SimpleNamespace(
+                title="Algorithms",
+                subject="CSC301",
+                content="A graph is a set of vertices and edges.",
+            )
+            query = MagicMock()
+            query.filter.return_value = query
+            query.order_by.return_value = query
+            query.limit.return_value = query
+            query.all.return_value = [(material, 1.0, excerpt)]
+            fake_db.query = MagicMock(return_value=query)
+
+            answer, sources = chat.answer_academic_question(
+                SimpleNamespace(id=3, email="student@example.test"),
+                "What is a graph?",
+                "groq",
+                None,
+                db=fake_db,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(answer, "Answer")
+        self.assertEqual(sources[0]["title"], "Algorithms")
+        self.assertIn("A graph is a set of vertices and edges.", generate.call_args.kwargs["message"])
+        self.assertEqual(sources[0]["subject"], "CSC301")
+
     def test_chat_completion_allows_the_requested_answer_length(self):
         service = LLMService()
         with patch(
@@ -1021,7 +1071,8 @@ class UploadIndexingTests(unittest.TestCase):
                 )
 
         self.assertFalse(result["rag_indexed"])
-        self.assertIn("AI search indexing failed", result["indexing_warning"])
+        self.assertTrue(result["full_text_indexed"])
+        self.assertIn("full-text search", result["indexing_warning"])
         self.assertEqual(db.material.course_id, 11)
         self.assertEqual(db.material.subject, "CS201")
         self.assertEqual(result["course_code"], "CS201")

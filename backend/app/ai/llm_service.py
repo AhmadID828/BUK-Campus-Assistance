@@ -15,6 +15,7 @@ OLLAMA_BASE_URL = os.getenv(
 ).rstrip("/")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+GROQ_EMBED_MODEL = os.getenv("GROQ_EMBED_MODEL", os.getenv("EMBED_MODEL", "nomic-embed-text"))
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma2:2b")
 OLLAMA_QUIZ_MODEL = os.getenv("OLLAMA_QUIZ_MODEL", OLLAMA_MODEL)
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
@@ -93,7 +94,36 @@ def _post_json(
 
 
 def get_embedding(text: str) -> list[float]:
-    """Return an embedding from the configured Ollama embedding model."""
+    """Return an embedding from the configured provider or fail with a clear message."""
+    selected_provider = (os.getenv("LLM_PROVIDER", LLM_PROVIDER) or LLM_PROVIDER).strip().lower()
+
+    if selected_provider == "groq":
+        if not GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY is required to generate embeddings in this environment.")
+
+        data = _post_json(
+            "https://api.groq.com/openai/v1/embeddings",
+            {"model": GROQ_EMBED_MODEL, "input": text},
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            timeout=45.0,
+        )
+        embedding = data.get("data")
+        if isinstance(embedding, list) and embedding:
+            first = embedding[0]
+            if isinstance(first, dict):
+                values = first.get("embedding")
+                if isinstance(values, list):
+                    return [float(value) for value in values]
+        raise RuntimeError("Groq returned an invalid embedding payload")
+
+    if not OLLAMA_BASE_URL:
+        raise RuntimeError(
+            "No embedding provider is configured. Set LLM_PROVIDER=groq with GROQ_API_KEY or run Ollama locally."
+        )
+
     data = _post_json(
         f"{OLLAMA_BASE_URL}/api/embeddings",
         {"model": EMBED_MODEL, "prompt": text},
