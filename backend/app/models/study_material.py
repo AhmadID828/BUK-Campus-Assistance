@@ -14,6 +14,7 @@ class StudyMaterial(Base):
     content = Column(Text)
     file_path = Column(String)
     subject = Column(String)
+    course_id = Column(Integer, ForeignKey("courses.id", ondelete="SET NULL"), nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -21,9 +22,9 @@ class StudyMaterial(Base):
     search_vector = Column(TSVECTOR)
 
     owner = relationship("User", back_populates="study_materials")
+    course = relationship("Course", back_populates="materials")
 
     # Create GIN index for fast full-text search
     __table_args__ = (
         Index('ix_study_materials_search_vector', 'search_vector', postgresql_using='gin'),
     )
-

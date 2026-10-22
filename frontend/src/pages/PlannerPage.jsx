@@ -21,6 +21,17 @@ const PlannerSchedule = ({
   onCompleteTopic,
   onRemoveTopic,
 }) => {
+  const displayDate = (value) => {
+    if (!value) return "Date to be scheduled";
+    const parsed = new Date(`${value}T00:00:00`);
+    return Number.isNaN(parsed.getTime())
+      ? value
+      : parsed.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+  };
   const items = plan?.plan || [];
   const completedCount = items.filter((item) => item.completed).length;
   const completion = items.length
@@ -44,8 +55,8 @@ const PlannerSchedule = ({
               </h2>
               {plan && (
                 <p className="mt-1 text-sm text-blue-100">
-                  {plan.start_date || "--"} <span aria-hidden="true">→</span>{" "}
-                  {plan.end_date || "--"}
+                  {displayDate(plan.start_date)} <span aria-hidden="true">→</span>{" "}
+                  {displayDate(plan.end_date)}
                 </p>
               )}
             </div>
@@ -125,7 +136,7 @@ const PlannerSchedule = ({
                         {item.topic}
                       </p>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
-                        {item.course || "Study topic"} <span aria-hidden="true">·</span> {item.date || "Date to be scheduled"}
+                        {item.course || "Study topic"} <span aria-hidden="true">·</span> {displayDate(item.date)}
                       </p>
                     </div>
                   </div>
@@ -197,14 +208,10 @@ const PlannerPage = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [courseCode, setCourseCode] = useState("");
-  const [courseTitle, setCourseTitle] = useState("");
   const [courses, setCourses] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedMaterial, setSelectedMaterial] = useState("");
-  const [topicCourse, setTopicCourse] = useState("");
-  const [topicTitle, setTopicTitle] = useState("");
   const [topicHours, setTopicHours] = useState("2");
   const [topicPriority, setTopicPriority] = useState("2");
   const [savingTopic, setSavingTopic] = useState(false);
@@ -264,86 +271,6 @@ const PlannerPage = () => {
     fetchAll();
   }, [token]);
 
-  const handleAddCourse = guard(async (e) => {
-    e.preventDefault();
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/planner/courses`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          course_code: courseCode,
-          course_title: courseTitle,
-          credit_units: 3,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.detail || "Failed to add course");
-      }
-
-      await response.json();
-      setSuccess("Course added successfully.");
-      setCourseCode("");
-      setCourseTitle("");
-      await fetchAll();
-    } catch (err) {
-      setError(err?.message || "Failed to add course");
-    }
-  }, "Study Planner");
-
-  const handleAddTopic = guard(async (event) => {
-    event.preventDefault();
-    if (!topicCourse || !topicTitle.trim()) {
-      setError("Choose a course and enter a topic title.");
-      return;
-    }
-
-    setSavingTopic(true);
-    setError("");
-    setSuccess("");
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/planner/courses/${topicCourse}/topics`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            title: topicTitle.trim(),
-            estimated_hours: Number(topicHours),
-            priority: Number(topicPriority),
-          }),
-        },
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || "Failed to add study topic");
-
-      const planResponse = await fetch(`${API_BASE_URL}/planner/regenerate`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const planData = await planResponse.json().catch(() => ({}));
-      if (!planResponse.ok) {
-        throw new Error(planData.detail || "Topic was added, but the plan could not be refreshed.");
-      }
-
-      setTopicTitle("");
-      setSuccess("Topic added and your study plan updated.");
-      await fetchAll();
-    } catch (err) {
-      setError(err?.message || "Failed to add study topic");
-    } finally {
-      setSavingTopic(false);
-    }
-  }, "Add Study Topic");
-
   const handleUpdateTopic = guard(async (topicId, changes) => {
     setError("");
     setSuccess("");
@@ -378,10 +305,13 @@ const PlannerPage = () => {
     e.preventDefault();
 
     if (!selectedCourse || !selectedMaterial) {
-      setError("Select both a course and an uploaded material.");
+      setError("Choose a course and one of its uploaded materials.");
       return;
     }
 
+    setSavingTopic(true);
+    setError("");
+    setSuccess("");
     try {
       const response = await fetch(`${API_BASE_URL}/planner/materials/${selectedMaterial}/import`, {
         method: "POST",
@@ -389,7 +319,11 @@ const PlannerPage = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ course_id: Number(selectedCourse) }),
+        body: JSON.stringify({
+          course_id: Number(selectedCourse),
+          estimated_hours: Number(topicHours),
+          priority: Number(topicPriority),
+        }),
       });
 
       if (!response.ok) {
@@ -397,11 +331,22 @@ const PlannerPage = () => {
         throw new Error(data.detail || "Failed to import material");
       }
 
-      setSuccess("Material added to the selected course.");
+      const planResponse = await fetch(`${API_BASE_URL}/planner/generate`, {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const planData = await planResponse.json().catch(() => ({}));
+      if (!planResponse.ok) {
+        throw new Error(planData.detail || "Topic added, but the study plan could not be generated.");
+      }
+
+      setSuccess("Study topic added and your plan generated.");
       setSelectedMaterial("");
       await fetchAll();
     } catch (err) {
       setError(err?.message || "Failed to import material");
+    } finally {
+      setSavingTopic(false);
     }
   }, "Import Material");
 
@@ -478,29 +423,6 @@ const PlannerPage = () => {
     }
   }, "Remove Planner Topic");
 
-  const handleDeleteMaterial = guard(async () => {
-    if (!selectedMaterial) {
-      setError("Select an uploaded material first.");
-      return;
-    }
-    if (!window.confirm("Delete this uploaded material permanently?")) return;
-    try {
-      const response = await fetch(`${API_BASE_URL}/materials/${selectedMaterial}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.detail || "Failed to delete material");
-      }
-      setSelectedMaterial("");
-      setSuccess("Uploaded material deleted.");
-      await fetchAll();
-    } catch (err) {
-      setError(err?.message || "Failed to delete material");
-    }
-  }, "Delete Uploaded Material");
-
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
       <PageHeader
@@ -521,8 +443,8 @@ const PlannerPage = () => {
       </PageHeader>
 
       <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Generate a plan to automatically import your uploaded materials. Completed quiz scores
-        adjust priorities so weaker material is scheduled earlier and given more study time.
+        Add uploaded materials as study topics below. Course exam dates guide scheduling, while
+        quiz scores adjust priorities so weaker topics receive more study time.
       </div>
 
       {error && (
@@ -566,138 +488,99 @@ const PlannerPage = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-        <form
-          onSubmit={handleAddCourse}
-          className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-gray-700 p-4 space-y-3 shadow-sm"
-        >
-          <h3 className="font-semibold text-gray-800 dark:text-white">Add Course</h3>
-          <input
-            value={courseCode}
-            onChange={(e) => setCourseCode(e.target.value)}
-            placeholder="Course code (e.g. SWE401)"
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-          <input
-            value={courseTitle}
-            onChange={(e) => setCourseTitle(e.target.value)}
-            placeholder="Course title"
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
-          >
-            Add Course
-          </button>
-        </form>
-
-        <form
-          onSubmit={handleAddTopic}
-          className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-gray-700 p-4 space-y-3 shadow-sm"
-        >
+      <form
+        onSubmit={handleImportMaterial}
+        className="mb-6 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+      >
+        <div className="mb-4">
           <h3 className="font-semibold text-gray-800 dark:text-white">Add a study topic</h3>
-          <select
-            value={topicCourse}
-            onChange={(event) => setTopicCourse(event.target.value)}
-            required
-            disabled={!courses.length || savingTopic}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
-          >
-            <option value="">Choose a course</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.course_code} - {course.course_title}
-              </option>
-            ))}
-          </select>
-          <input
-            value={topicTitle}
-            onChange={(event) => setTopicTitle(event.target.value)}
-            placeholder="Topic to study"
-            maxLength={200}
-            required
-            disabled={savingTopic}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs text-gray-600 dark:text-gray-300">
-              Study time
-              <select
-                value={topicHours}
-                onChange={(event) => setTopicHours(event.target.value)}
-                disabled={savingTopic}
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
-              >
-                {["0.5", "1", "1.5", "2", "3", "4", "6", "8", "12"].map((hours) => (
-                  <option key={hours} value={hours}>{hours} hours</option>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+            Choose a registered course, then select one of its uploaded materials.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Course code
+            <select
+              value={selectedCourse}
+              onChange={(event) => {
+                setSelectedCourse(event.target.value);
+                setSelectedMaterial("");
+              }}
+              required
+              disabled={!courses.length || savingTopic}
+              className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700"
+            >
+              <option value="">Choose a registered course</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.course_code} — {course.course_title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Topic to study
+            <select
+              value={selectedMaterial}
+              onChange={(event) => setSelectedMaterial(event.target.value)}
+              required
+              disabled={!selectedCourse || savingTopic}
+              className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700"
+            >
+              <option value="">Choose an uploaded material</option>
+              {materials
+                .filter((material) => {
+                  const alreadyAdded = courses.some((course) =>
+                    (course.topics || []).some((topic) => topic.material_id === material.id)
+                  );
+                  return String(material.course_id) === selectedCourse && !alreadyAdded;
+                })
+                .map((material) => (
+                  <option key={material.id} value={material.id}>{material.title}</option>
                 ))}
-              </select>
-            </label>
-            <label className="text-xs text-gray-600 dark:text-gray-300">
-              Priority
-              <select
-                value={topicPriority}
-                onChange={(event) => setTopicPriority(event.target.value)}
-                disabled={savingTopic}
-                className="mt-1 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
-              >
-                <option value="1">High</option>
-                <option value="2">Medium</option>
-                <option value="3">Low</option>
-              </select>
-            </label>
-          </div>
-          <button
-            type="submit"
-            disabled={!courses.length || savingTopic}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
-          >
-            {savingTopic ? "Adding and scheduling..." : "Add topic to plan"}
-          </button>
-          {!courses.length && (
-            <p className="text-xs text-gray-500">Add a course first to organize topics.</p>
-          )}
-        </form>
-
-        <form
-          onSubmit={handleImportMaterial}
-          className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-gray-700 p-4 space-y-3 shadow-sm"
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Study time
+            <select
+              value={topicHours}
+              onChange={(event) => setTopicHours(event.target.value)}
+              disabled={!selectedMaterial || savingTopic}
+              className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700"
+            >
+              {["0.5", "1", "1.5", "2", "3", "4", "6", "8", "12"].map((hours) => (
+                <option key={hours} value={hours}>{hours} hours</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Priority
+            <select
+              value={topicPriority}
+              onChange={(event) => setTopicPriority(event.target.value)}
+              disabled={!selectedMaterial || savingTopic}
+              className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700"
+            >
+              <option value="1">High</option>
+              <option value="2">Medium</option>
+              <option value="3">Low</option>
+            </select>
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={!selectedCourse || !selectedMaterial || savingTopic}
+          className="mt-4 rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <h3 className="font-semibold text-gray-800 dark:text-white">Add uploaded material</h3>
-          <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)} required
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm">
-            <option value="">Select course</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>{course.course_code} - {course.course_title}</option>
-            ))}
-          </select>
-          <select value={selectedMaterial} onChange={(e) => setSelectedMaterial(e.target.value)} required
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm">
-            <option value="">Select uploaded material</option>
-            {materials.map((material) => (
-              <option key={material.id} value={material.id}>{material.title} ({material.subject || "General"})</option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
-          >
-            Add to Planner
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteMaterial}
-            disabled={!selectedMaterial}
-            className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 disabled:opacity-50 text-red-700 rounded-lg text-sm font-medium transition"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete material
-          </button>
-        </form>
-      </div>
+          {savingTopic ? "Adding topic and generating plan..." : "Add topic to planner"}
+        </button>
+        {!courses.length && (
+          <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
+            Register your courses and upload materials from the Study Materials page first.
+          </p>
+        )}
+      </form>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-gray-700 p-5 mb-6 shadow-sm">
         <h3 className="font-semibold text-gray-800 dark:text-white mb-3">
@@ -722,6 +605,15 @@ const PlannerPage = () => {
                     <p className="text-sm text-gray-600 dark:text-gray-300">
                       {course.course_title}
                     </p>
+                    {course.exam_date && (
+                      <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                        Exam: {new Date(`${course.exam_date}T00:00:00`).toLocaleDateString(undefined, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    )}
                   </div>
                   <span className="text-xs text-blue-600 font-medium">
                     {course.completed_topics || 0}/{course.total_topics || 0} complete

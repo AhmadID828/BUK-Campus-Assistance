@@ -130,7 +130,7 @@ async def generate_quiz(
             detail="Study material not found",
         )
 
-    quiz_provider = (provider or os.getenv("QUIZ_PROVIDER", "ollama")).strip().lower()
+    quiz_provider = (provider or os.getenv("QUIZ_PROVIDER", "groq")).strip().lower()
     if quiz_provider not in {"ollama", "groq"}:
         raise HTTPException(status_code=400, detail="Invalid AI provider")
     max_questions = 50

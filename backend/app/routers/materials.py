@@ -13,6 +13,7 @@ from app.ai.llm_service import GROQ_MODEL, OLLAMA_MODEL, generate_answer
 from app.ai.rag_service import rag_service
 from app.database import get_db # type: ignore
 from app.models.study_material import StudyMaterial # type: ignore
+from app.models.planner import Course, StudyTopic
 from app.models.user import User
 from app.utils.dependencies import require_approved_user
 from app.utils.file_extractor import (
@@ -44,10 +45,17 @@ def decode_cursor(cursor: str) -> int:
 def upload_material(
     file: UploadFile = File(...),
     title: str = Form("Untitled Material"),
-    subject: str = Form("General"),
+    course_id: int = Form(...),
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.user_id == user.id,
+    ).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Registered course not found")
+
     allowed_extensions = {".pdf", ".docx", ".pptx"}
     filename = file.filename or "uploaded_file"
     file_ext = os.path.splitext(filename)[1].lower()
@@ -91,7 +99,8 @@ def upload_material(
         title=title,
         content=extracted_text[:8000],
         file_path=file_path,
-        subject=subject,
+        subject=course.course_code,
+        course_id=course.id,
         owner_id=user.id,
     )
 
@@ -106,7 +115,7 @@ def upload_material(
             material_id=material.id, # type: ignore
             title=material.title, # type: ignore
             content=extracted_text,
-            subject=material.subject or "", # type: ignore
+            subject=course.course_code, # type: ignore
         )
     except Exception:
         rag_indexed = False
@@ -123,6 +132,9 @@ def upload_material(
         "material_id": material.id,
         "title": material.title,
         "subject": material.subject,
+        "course_id": course.id,
+        "course_code": course.course_code,
+        "course_title": course.course_title,
         "owner": user.full_name,
         "rag_indexed": rag_indexed,
         "indexing_warning": (
@@ -169,7 +181,7 @@ Notes:
 {material.content[:8000]}
 """
 
-    summary_provider = (provider or os.getenv("LLM_PROVIDER", "ollama")).strip().lower()
+    summary_provider = (provider or os.getenv("LLM_PROVIDER", "groq")).strip().lower()
     if summary_provider not in {"ollama", "groq"}:
         raise HTTPException(status_code=400, detail="Invalid AI provider")
     summary_model = OLLAMA_MODEL if summary_provider == "ollama" else GROQ_MODEL
@@ -269,6 +281,9 @@ async def get_materials(
                 "id": material.id,
                 "title": material.title,
                 "subject": material.subject,
+                "course_id": material.course_id,
+                "course_code": material.course.course_code if material.course else None,
+                "course_title": material.course.course_title if material.course else None,
                 "file_path": material.file_path,
                 "rank": float(row[1]) if search else None,
             }
@@ -305,9 +320,12 @@ async def delete_material(
         os.remove(material.file_path)
     try:
         rag_service.delete_material(user.id, material.id)
-    except Exception as error:
-        print(f"RAG cleanup failed for material {material.id}: {error}")
+    except Exception:
+        logger.exception("RAG cleanup failed for material %s", material.id)
 
+    db.query(StudyTopic).filter(StudyTopic.material_id == material.id).delete(
+        synchronize_session=False
+    )
     db.delete(material)
     db.commit()
     return {"message": "Material deleted successfully", "material_id": material_id}

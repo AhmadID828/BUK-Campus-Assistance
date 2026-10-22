@@ -3,12 +3,16 @@ import { useAuth } from "../../context/AuthContext";
 import { API_BASE_URL } from "../../config";
 import { toast } from "react-hot-toast";
 import {
+  ArrowRight,
+  BellRing,
+  ClipboardCheck,
   Users,
   UserCheck,
   Brain,
   BarChart3,
   Clock,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const AdminDashboard = () => {
   const { token } = useAuth();
@@ -156,35 +160,53 @@ const AdminDashboard = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="mt-8">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
-          <h3 className="font-semibold text-gray-800 dark:text-white mb-3">
-            Quick Actions
-          </h3>
-          <div className="space-y-2">
-            <a
-              href="/admin/pending"
-              className="block w-full text-left px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition text-sm"
-            >
-              Review Pending Approvals
-            </a>
-            <a
-              href="/admin/students"
-              className="block w-full text-left px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition text-sm"
-            >
-              Manage Students
-            </a>
-            <button
-              type="button"
-              onClick={handleSendReminders}
-              disabled={sendingReminders}
-              className="block w-full text-left px-4 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition text-sm"
-            >
-              {sendingReminders ? "Sending Reminders..." : "Send Daily Reminders"}
-            </button>
-          </div>
+      <section className="mt-8 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+        <div className="mb-5">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Quick Actions</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Common admin tasks, ready when you need them.</p>
         </div>
-      </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Link
+            to="/admin/pending"
+            className="group rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-4 transition hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/40 dark:from-amber-900/20 dark:to-gray-800"
+          >
+            <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+              <ClipboardCheck className="h-5 w-5" />
+            </span>
+            <span className="flex items-center justify-between gap-2 font-semibold text-gray-900 dark:text-white">
+              Review approvals <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            </span>
+            <span className="mt-1 block text-sm text-gray-500 dark:text-gray-300">Check and approve pending student accounts.</span>
+          </Link>
+          <Link
+            to="/admin/students"
+            className="group rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4 transition hover:-translate-y-0.5 hover:shadow-md dark:border-blue-900/40 dark:from-blue-900/20 dark:to-gray-800"
+          >
+            <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+              <Users className="h-5 w-5" />
+            </span>
+            <span className="flex items-center justify-between gap-2 font-semibold text-gray-900 dark:text-white">
+              Manage students <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            </span>
+            <span className="mt-1 block text-sm text-gray-500 dark:text-gray-300">Review academic details and account status.</span>
+          </Link>
+          <button
+            type="button"
+            onClick={handleSendReminders}
+            disabled={sendingReminders}
+            className="group rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-wait disabled:opacity-60 dark:border-emerald-900/40 dark:from-emerald-900/20 dark:to-gray-800"
+          >
+            <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+              <BellRing className="h-5 w-5" />
+            </span>
+            <span className="flex items-center justify-between gap-2 font-semibold text-gray-900 dark:text-white">
+              {sendingReminders ? "Sending reminders..." : "Send study reminders"}
+              {!sendingReminders && <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />}
+            </span>
+            <span className="mt-1 block text-sm text-gray-500 dark:text-gray-300">Email today&apos;s study schedule to approved students.</span>
+          </button>
+        </div>
+      </section>
     </div>
   );
 };

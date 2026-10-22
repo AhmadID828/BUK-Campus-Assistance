@@ -9,7 +9,7 @@ from app.utils.auth import hash_password, password_validation_errors
 from app.models.study_material import StudyMaterial # type: ignore
 from app.models.quiz import Quiz, QuizAttempt
 from app.models.event import Event
-from app.schemas.user import AdminCreate
+from app.schemas.user import AdminCreate, AdminStudentUpdate
 from sqlalchemy import func
 from datetime import date
 
@@ -107,6 +107,7 @@ async def get_all_students(
     students = db.query(User).filter(User.role == "student").all()
     return {
         "total": len(students),
+        "can_edit_student_details": (admin.email or "").strip().lower() == CHIEF_ADMIN_EMAIL,
         "students": [
             {
                 "id": s.id,
@@ -121,6 +122,58 @@ async def get_all_students(
                 "created_at": s.created_at,
             } for s in students
         ]
+    }
+
+
+@router.put("/students/{user_id}")
+async def update_student_details(
+    user_id: int,
+    payload: AdminStudentUpdate,
+    admin: User = Depends(get_super_admin),
+    db: Session = Depends(get_db),
+):
+    student = db.query(User).filter(User.id == user_id, User.role == "student").first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    email = str(payload.email).strip().lower()
+    duplicate = db.query(User).filter(
+        func.lower(User.email) == email,
+        User.id != student.id,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=409, detail="That email address is already in use")
+
+    registration_number = (payload.registration_number or "").strip() or None
+    if registration_number and db.query(User).filter(
+        User.registration_number == registration_number,
+        User.id != student.id,
+    ).first():
+        raise HTTPException(status_code=409, detail="That registration number is already in use")
+
+    full_name = payload.full_name.strip()
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Student name cannot be empty")
+
+    student.full_name = full_name
+    student.email = email
+    student.registration_number = registration_number
+    student.faculty = (payload.faculty or "").strip() or None
+    student.department = (payload.department or "").strip() or None
+    student.level = payload.level
+    db.commit()
+    db.refresh(student)
+    return {
+        "message": "Student details updated successfully",
+        "student": {
+            "id": student.id,
+            "full_name": student.full_name,
+            "email": student.email,
+            "registration_number": student.registration_number,
+            "faculty": student.faculty,
+            "department": student.department,
+            "level": student.level,
+        },
     }
 
 # ========== MAKE A USER ADMIN ==========

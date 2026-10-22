@@ -7,6 +7,8 @@ and campus information together in one responsive web app.
 
 - Chat with an AI assistant and ask questions about uploaded course materials.
 - Summarize study materials, build a study plan, and generate quizzes.
+- Register courses, upload materials under course codes, and schedule topics
+  against optional exam dates.
 - Find campus places on the map and browse frequently asked questions.
 - Manage student approvals and campus events with an administrator account.
 
@@ -50,10 +52,12 @@ start command is `uvicorn main:app --host 0.0.0.0 --port $PORT`.
 
 Use separate local and hosted databases and credentials. Hosted services
 cannot use an Ollama instance running on a developer's computer; configure an
-AI provider that the deployed backend can reach. Frontend `VITE_` settings are
+AI provider that the deployed backend can reach. Groq is the default hosted
+provider; configure `GROQ_API_KEY` on the backend. Frontend `VITE_` settings are
 embedded at build time, so rebuild and redeploy after changing them. Back up
 production data before database changes, and use reviewed migrations for schema
-updates.
+updates. Apply `backend/migrations/003_link_materials_to_courses.sql` before
+deploying the course-linked materials and planner changes.
 
 ## Accounts and access
 

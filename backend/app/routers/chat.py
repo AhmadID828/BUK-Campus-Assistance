@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 
 from app.ai.campus_qa import answer_campus_question
-from app.ai.llm_service import OLLAMA_MODEL, llm_service
+from app.ai.llm_service import GROQ_MODEL, OLLAMA_MODEL, llm_service
 from app.ai.rag_service import rag_service
 from app.database import get_db
 from app.models.chat import ChatMessage, ChatSession
@@ -128,7 +128,7 @@ def unified_ask(
         raise HTTPException(status_code=400, detail="Invalid AI provider")
     allowed_models = {
         "ollama": {OLLAMA_MODEL},
-        "groq": {"openai/gpt-oss-20b"},
+        "groq": {GROQ_MODEL},
     }
     model = message.model.strip() if message.model else None
     if model and model not in allowed_models[provider]:

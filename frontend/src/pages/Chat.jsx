@@ -28,8 +28,8 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("mixed"); // mixed | academic | campus
-  const [provider, setProvider] = useState("ollama");
-  const [model, setModel] = useState("gemma2:2b");
+  const [provider, setProvider] = useState("groq");
+  const [model, setModel] = useState("openai/gpt-oss-20b");
   const [sessions, setSessions] = useState([]);
   const [sessionId, setSessionId] = useState(null);
   const [showRecent, setShowRecent] = useState(false);

@@ -24,6 +24,15 @@ class AdminCreate(BaseModel):
     password: str
 
 
+class AdminStudentUpdate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=200)
+    email: EmailStr
+    registration_number: Optional[str] = Field(default=None, max_length=100)
+    faculty: Optional[str] = Field(default=None, max_length=200)
+    department: Optional[str] = Field(default=None, max_length=200)
+    level: Optional[int] = Field(default=None, ge=100, le=600, multiple_of=100)
+
+
 class UserResponse(BaseModel):
     id: int
     full_name: str
@@ -154,7 +163,7 @@ class ChatMessageCreate(BaseModel):
     content: str
     session_id: Optional[int] = None
     session_type: str = "mixed"
-    provider: str = "ollama"
+    provider: str = "groq"
     model: Optional[str] = None
 
 class ChatMessageOut(BaseModel):

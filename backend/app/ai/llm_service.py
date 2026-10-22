@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq").strip().lower()
 OLLAMA_BASE_URL = os.getenv(
     "OLLAMA_BASE_URL",
     os.getenv("OLLAMA_BASE", "http://localhost:11434"),

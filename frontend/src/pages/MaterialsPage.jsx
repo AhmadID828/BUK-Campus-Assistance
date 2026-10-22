@@ -7,7 +7,7 @@ import { API_BASE_URL } from "../config";
 import useApprovalGuard from "../hooks/useApprovalGuard";
 import PageHeader from "../components/PageHeader";
 import LockedFeatureModal from "../components/LockedFeatureModal";
-import { FileText, Search, Sparkles, Upload } from "lucide-react";
+import { BookOpen, FileText, Plus, Search, Sparkles, Trash2, Upload } from "lucide-react";
 
 const MaterialsPage = () => {
   const { token } = useAuth();
@@ -16,6 +16,7 @@ const MaterialsPage = () => {
     useApprovalGuard();
 
   const [materials, setMaterials] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -26,7 +27,11 @@ const MaterialsPage = () => {
   const [file, setFile] = useState(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [title, setTitle] = useState("");
-  const [subject, setSubject] = useState("");
+  const [courseId, setCourseId] = useState("");
+  const [courseCode, setCourseCode] = useState("");
+  const [courseTitle, setCourseTitle] = useState("");
+  const [examDate, setExamDate] = useState("");
+  const [savingCourse, setSavingCourse] = useState(false);
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -46,7 +51,7 @@ const MaterialsPage = () => {
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/materials/`, {
+      const response = await fetch(`${API_BASE_URL}/materials/?limit=50`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -57,6 +62,14 @@ const MaterialsPage = () => {
 
       const data = await response.json();
       setMaterials(data.materials ?? []);
+      const coursesResponse = await fetch(`${API_BASE_URL}/planner/courses`, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      const coursesData = await coursesResponse.json().catch(() => ({}));
+      if (!coursesResponse.ok) {
+        throw new Error(coursesData.detail || "Failed to load registered courses");
+      }
+      setCourses(coursesData.courses ?? []);
     } catch (fetchError) {
       setError(fetchError.message);
     } finally {
@@ -76,7 +89,12 @@ const MaterialsPage = () => {
       return;
     }
 
-    if (!startUpload(file, title, subject)) {
+    if (!courseId) {
+      setError("Register and select a course before uploading a material.");
+      return;
+    }
+
+    if (!startUpload(file, title, courseId)) {
       setError("An upload is already in progress, or your session has expired.");
       return;
     }
@@ -87,8 +105,58 @@ const MaterialsPage = () => {
     setFile(null);
     setFileInputKey((key) => key + 1);
     setTitle("");
-    setSubject("");
   }, "Study Materials Upload");
+
+  const handleRegisterCourse = guard(async (event) => {
+    event.preventDefault();
+    setSavingCourse(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/planner/courses`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          course_code: courseCode,
+          course_title: courseTitle,
+          exam_date: examDate || null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Could not register course");
+      setCourseCode("");
+      setCourseTitle("");
+      setExamDate("");
+      setCourseId(String(data.course_id));
+      setSuccess("Course registered. You can now upload its materials.");
+      await fetchMaterials();
+    } catch (courseError) {
+      setError(courseError.message || "Could not register course");
+    } finally {
+      setSavingCourse(false);
+    }
+  }, "Course Registration");
+
+  const handleDeleteMaterial = guard(async (material) => {
+    if (!window.confirm(`Delete "${material.title}" permanently?`)) return;
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/materials/${material.id}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Failed to delete material");
+      setSuccess("Material deleted.");
+      await fetchMaterials();
+    } catch (deleteError) {
+      setError(deleteError.message || "Failed to delete material");
+    }
+  }, "Delete Study Material");
 
   const handleSummarize = guard(async (materialId) => {
     setSummarizingId(materialId);
@@ -126,7 +194,8 @@ const MaterialsPage = () => {
     (material) =>
       !searchTerm ||
       material.title?.toLowerCase().includes(searchTerm) ||
-      material.subject?.toLowerCase().includes(searchTerm)
+      material.course_code?.toLowerCase().includes(searchTerm) ||
+      material.course_title?.toLowerCase().includes(searchTerm)
   );
 
   return (
@@ -137,6 +206,74 @@ const MaterialsPage = () => {
         showRefresh={true}
         onRefresh={fetchMaterials}
       />
+
+      <section className="mb-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm dark:border-gray-700 dark:from-gray-800 dark:to-gray-800">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="rounded-xl bg-blue-100 p-2.5 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+            <BookOpen className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="font-semibold text-gray-900 dark:text-white">Register a course</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Add the course code and title before uploading its study materials.
+            </p>
+          </div>
+        </div>
+        <form onSubmit={handleRegisterCourse} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <input
+            value={courseCode}
+            onChange={(event) => setCourseCode(event.target.value.toUpperCase())}
+            placeholder="Course code (e.g. SWE401)"
+            maxLength={32}
+            required
+            className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+          <input
+            value={courseTitle}
+            onChange={(event) => setCourseTitle(event.target.value)}
+            placeholder="Course title"
+            maxLength={200}
+            required
+            className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+            Exam date (optional)
+            <input
+              type="date"
+              value={examDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(event) => setExamDate(event.target.value)}
+              className="mt-1 block w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={savingCourse}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:opacity-60"
+          >
+            <Plus className="h-4 w-4" />
+            {savingCourse ? "Registering..." : "Register course"}
+          </button>
+        </form>
+        {courses.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {courses.map((course) => (
+              <button
+                type="button"
+                key={course.id}
+                onClick={() => setCourseId(String(course.id))}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  courseId === String(course.id)
+                    ? "border-blue-700 bg-blue-700 text-white"
+                    : "border-blue-200 bg-white text-blue-800 hover:bg-blue-50 dark:border-gray-600 dark:bg-gray-800 dark:text-blue-200"
+                }`}
+              >
+                {course.course_code} · {course.course_title}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm">
@@ -174,16 +311,21 @@ const MaterialsPage = () => {
           />
         </div>
         <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-            Subject
-          </label>
-          <input
-            type="text"
-            value={subject}
-            onChange={(event) => setSubject(event.target.value)}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
-            placeholder="e.g. SWE401"
-          />
+          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Course</label>
+          <select
+            value={courseId}
+            onChange={(event) => setCourseId(event.target.value)}
+            required
+            disabled={!courses.length || upload?.status === "uploading"}
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="">Select a registered course</option>
+            {courses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.course_code} — {course.course_title}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
@@ -203,12 +345,17 @@ const MaterialsPage = () => {
         <div className="md:col-span-2">
           <button
             type="submit"
-            disabled={upload?.status === "uploading"}
+            disabled={upload?.status === "uploading" || !courses.length}
             className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
           >
             <Upload className="w-4 h-4" />
-            {upload?.status === "uploading" ? "Uploading in background..." : "Upload Material"}
+            {upload?.status === "uploading" ? "Uploading..." : "Upload Material"}
           </button>
+          {!courses.length && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+              Register a course above before uploading materials.
+            </p>
+          )}
         </div>
       </form>
 
@@ -263,7 +410,9 @@ const MaterialsPage = () => {
                     {material.title}
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {material.subject || "General"}
+                    {material.course_code
+                      ? `${material.course_code} · ${material.course_title || ""}`
+                      : material.subject || "No course assigned"}
                   </p>
                 </div>
               </div>
@@ -274,6 +423,14 @@ const MaterialsPage = () => {
               >
                 <Sparkles className="w-4 h-4" />
                 {summarizingId === material.id ? "Summarising..." : "Summarise"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteMaterial(material)}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete material
               </button>
             </div>
           ))}

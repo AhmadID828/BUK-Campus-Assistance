@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from typing import List, Optional
 import json
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db # type: ignore
 from app.models.planner import Course, StudyTopic, StudyPlan
@@ -14,6 +15,37 @@ from app.utils.email import send_email
 
 
 router = APIRouter(prefix="/planner", tags=["Adaptive Study Planner"])
+
+
+def build_plan_items(topics: list[StudyTopic], start_date: date) -> list[dict]:
+    grouped_topics: dict[int | None, list[StudyTopic]] = {}
+    for topic in topics:
+        grouped_topics.setdefault(topic.course_id, []).append(topic)
+
+    items = []
+    for topic in topics:
+        course_topics = grouped_topics[topic.course_id]
+        topic_index = course_topics.index(topic)
+        exam_date = topic.course.exam_date if topic.course else None
+        if exam_date and exam_date >= start_date:
+            days_until_exam = (exam_date - start_date).days
+            day_offset = min(
+                days_until_exam,
+                ((topic_index + 1) * (days_until_exam + 1) // len(course_topics)) - 1,
+            )
+        else:
+            day_offset = topic_index
+
+        items.append({
+            "topic_id": topic.id,
+            "material_id": topic.material_id,
+            "date": str(start_date + timedelta(days=max(day_offset, 0))),
+            "course": topic.course.course_code if topic.course else "General",
+            "topic": topic.title,
+            "hours": topic.estimated_hours,
+            "priority": topic.priority,
+        })
+    return items
 
 
 # ========== COURSE AND MATERIAL SOURCES ==========
@@ -30,9 +62,11 @@ async def get_courses(
                 "id": course.id,
                 "course_code": course.course_code,
                 "course_title": course.course_title,
+                "exam_date": str(course.exam_date) if course.exam_date else None,
                 "topics": [
                     {
                         "id": topic.id,
+                        "material_id": topic.material_id,
                         "title": topic.title,
                         "is_completed": bool(topic.is_completed),
                         "priority": topic.priority,
@@ -56,12 +90,31 @@ async def add_course(
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
+    course_code = str(payload.get("course_code") or "").strip().upper()
+    course_title = str(payload.get("course_title") or "").strip()
+    if not course_code or not course_title:
+        raise HTTPException(status_code=400, detail="Course code and title are required")
+    if len(course_code) > 32 or len(course_title) > 200:
+        raise HTTPException(status_code=400, detail="Course code or title is too long")
+    if db.query(Course).filter(
+        Course.user_id == user.id,
+        func.lower(Course.course_code) == course_code.lower(),
+    ).first():
+        raise HTTPException(status_code=409, detail="This course is already registered")
+
+    exam_date = payload.get("exam_date") or None
+    if exam_date:
+        try:
+            exam_date = date.fromisoformat(str(exam_date))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Exam date must be a valid date") from None
+
     course = Course(
         user_id=user.id,
-        course_code=payload.get("course_code"),
-        course_title=payload.get("course_title"),
+        course_code=course_code,
+        course_title=course_title,
         credit_units=payload.get("credit_units", 3),
-        exam_date=payload.get("exam_date"),
+        exam_date=exam_date,
     )
     db.add(course)
     db.commit()
@@ -72,18 +125,10 @@ async def add_course(
 @router.post("/materials/{material_id}/import")
 async def import_material(
     material_id: int,
-    payload: dict,
+    payload: dict | None = None,
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    course = db.query(Course).filter(
-        Course.id == payload.get("course_id"),
-        Course.user_id == user.id,
-    ).first()
-
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-
     material = db.query(StudyMaterial).filter(
         StudyMaterial.id == material_id,
         StudyMaterial.owner_id == user.id,
@@ -91,19 +136,53 @@ async def import_material(
     if not material:
         raise HTTPException(status_code=404, detail="Study material not found")
 
+    requested_course_id = (payload or {}).get("course_id")
+    if requested_course_id is not None:
+        try:
+            requested_course_id = int(requested_course_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Course selection is invalid") from None
+    course_id = material.course_id or requested_course_id
+    if not course_id:
+        raise HTTPException(status_code=400, detail="Upload this material under a registered course first")
+    if material.course_id and requested_course_id and requested_course_id != material.course_id:
+        raise HTTPException(status_code=400, detail="Material belongs to a different course")
+
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.user_id == user.id,
+    ).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
     existing_topic = db.query(StudyTopic).filter(
         StudyTopic.course_id == course.id,
-        StudyTopic.title == material.title,
+        (StudyTopic.material_id == material.id)
+        if material.course_id
+        else (StudyTopic.title == material.title),
     ).first()
     if existing_topic:
         return {"message": "Material is already in this course", "topic_id": existing_topic.id}
 
+    try:
+        priority = int((payload or {}).get("priority", 2))
+        estimated_hours = float((payload or {}).get("estimated_hours", 2))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Priority and study time must be valid numbers") from None
+    if priority not in {1, 2, 3}:
+        raise HTTPException(status_code=400, detail="Priority must be 1, 2 or 3")
+    if not 0.5 <= estimated_hours <= 12:
+        raise HTTPException(status_code=400, detail="Study time must be between 0.5 and 12 hours")
+
+    material.course_id = course.id
+    material.subject = course.course_code
     topic = StudyTopic(
         course_id=course.id,
+        material_id=material.id,
         title=material.title,
-        description=f"Imported from {material.subject or 'uploaded study material'}",
-        priority=2,
-        estimated_hours=2.0,
+        description=f"Uploaded material for {course.course_code}",
+        priority=priority,
+        estimated_hours=estimated_hours,
     )
     db.add(topic)
     db.commit()
@@ -267,36 +346,25 @@ async def generate_study_plan(
 
     material_ids_by_title = {material.title: material.id for material in materials}
     for topic in topics:
-        material_id = material_ids_by_title.get(topic.title)
+        material_id = topic.material_id or material_ids_by_title.get(topic.title)
         score = quiz_averages.get(material_id) if material_id else None
         if score is not None:
             topic.priority = 1 if score < 60 else 2 if score < 80 else 3
             topic.estimated_hours = 3.0 if score < 60 else 2.0
 
-    # Simple adaptive logic
     today = date.today()
-    plan = []
-    current_date = today
-
-    for topic in topics:
-        # Higher priority topics get scheduled earlier
-        hours = topic.estimated_hours
-        plan.append({
-            "topic_id": topic.id,
-            "date": str(current_date),
-            "course": topic.course.course_code if topic.course else "General",
-            "topic": topic.title,
-            "hours": hours,
-            "priority": topic.priority
-        })
-        current_date += timedelta(days=1)
+    plan = build_plan_items(topics, today)
+    end_date = max(
+        (date.fromisoformat(item["date"]) for item in plan),
+        default=today,
+    ) + timedelta(days=1)
 
     # Save the plan
     study_plan = StudyPlan(
         user_id=user.id,
         title=f"Study Plan - {today}",
         start_date=today,
-        end_date=current_date,
+        end_date=end_date,
         plan_data=json.dumps(plan),
         is_active=True
     )
@@ -619,24 +687,17 @@ async def regenerate_study_plan(
 
     today = date.today()
     plan = []
-    current_date = today
-
-    for topic in topics:
-        plan.append({
-            "topic_id": topic.id,
-            "date": str(current_date),
-            "course": topic.course.course_code if topic.course else "General",
-            "topic": topic.title,
-            "hours": topic.estimated_hours,
-            "priority": topic.priority
-        })
-        current_date += timedelta(days=1)
+    plan = build_plan_items(topics, today)
+    end_date = max(
+        (date.fromisoformat(item["date"]) for item in plan),
+        default=today,
+    ) + timedelta(days=1)
 
     new_plan = StudyPlan(
         user_id=user.id,
         title=f"Regenerated Plan - {today}",
         start_date=today,
-        end_date=current_date,
+        end_date=end_date,
         plan_data=json.dumps(plan),
         is_active=True
     )

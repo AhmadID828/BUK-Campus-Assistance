@@ -13,7 +13,7 @@ export function MaterialUploadProvider({ children }) {
   const [uploadRevision, setUploadRevision] = useState(0);
   const uploadInProgress = useRef(false);
 
-  const startUpload = useCallback((file, title, subject) => {
+  const startUpload = useCallback((file, title, courseId) => {
     if (file.size > MAX_UPLOAD_SIZE) {
       setUpload({
         status: "error",
@@ -31,6 +31,14 @@ export function MaterialUploadProvider({ children }) {
       });
       return false;
     }
+    if (!courseId) {
+      setUpload({
+        status: "error",
+        filename: file.name,
+        message: "Register and select a course before uploading materials.",
+      });
+      return false;
+    }
 
     uploadInProgress.current = true;
     setUpload({ status: "uploading", filename: file.name, message: "" });
@@ -38,7 +46,7 @@ export function MaterialUploadProvider({ children }) {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", title.trim() || file.name);
-    formData.append("subject", subject.trim() || "General");
+    formData.append("course_id", courseId);
 
     fetch(`${API_BASE_URL}/materials/upload`, {
       method: "POST",

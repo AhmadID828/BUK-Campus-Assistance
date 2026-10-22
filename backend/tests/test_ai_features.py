@@ -2,6 +2,7 @@ import asyncio
 import json
 import tempfile
 import unittest
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,7 +19,7 @@ from app.models.faq import FAQ
 from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.routers import admin, auth, chat, emergency, events, faqs, materials, planner, quiz
-from app.schemas.user import AdminCreate, UserCreate, UserLogin
+from app.schemas.user import AdminCreate, AdminStudentUpdate, UserCreate, UserLogin
 from app.utils.auth import password_validation_errors
 from app.utils.dependencies import get_current_user, get_super_admin
 from app.utils.email import send_approval_email
@@ -212,6 +213,23 @@ class ProfileUpdateTests(unittest.TestCase):
 
 
 class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
+    def test_admin_student_update_accepts_supported_level(self):
+        payload = AdminStudentUpdate(
+            full_name="Student Name",
+            email="student@example.com",
+            level=300,
+        )
+
+        self.assertEqual(payload.level, 300)
+
+    def test_admin_student_update_rejects_unsupported_level(self):
+        with self.assertRaises(ValidationError):
+            AdminStudentUpdate(
+                full_name="Student Name",
+                email="student@example.com",
+                level=350,
+            )
+
     def test_login_finds_existing_admin_email_without_case_sensitivity(self):
         account = SimpleNamespace(
             id=1,
@@ -481,6 +499,28 @@ class CampusFAQChatTests(unittest.TestCase):
 
 
 class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
+    def test_plan_places_topics_before_their_course_exam(self):
+        course = SimpleNamespace(exam_date=date(2026, 10, 24), course_code="CS201")
+        topics = [
+            SimpleNamespace(
+                id=index,
+                course_id=2,
+                material_id=20 + index,
+                course=course,
+                title=f"Lecture {index}",
+                estimated_hours=2,
+                priority=2,
+            )
+            for index in range(1, 4)
+        ]
+
+        items = planner.build_plan_items(topics, date(2026, 10, 22))
+
+        self.assertEqual(
+            [item["date"] for item in items],
+            ["2026-10-22", "2026-10-23", "2026-10-24"],
+        )
+
     async def test_add_topic_saves_priority_and_estimated_time(self):
         course = SimpleNamespace(id=2, user_id=4)
         db = FakePlannerDB(course)
@@ -928,8 +968,28 @@ class QuizTests(unittest.IsolatedAsyncioTestCase):
 
 
 class UploadIndexingTests(unittest.TestCase):
+    def _course_query(self):
+        return SimpleNamespace(
+            filter=lambda *conditions: SimpleNamespace(
+                first=lambda: SimpleNamespace(
+                    id=11,
+                    course_code="CS201",
+                    course_title="Computer Science",
+                )
+            )
+        )
+
     def test_upload_response_surfaces_rag_indexing_failure(self):
+        course = SimpleNamespace(
+            id=11,
+            course_code="CS201",
+            course_title="Computer Science",
+        )
+
         class FakeDB:
+            def query(self, model):
+                return SimpleNamespace(filter=lambda *conditions: SimpleNamespace(first=lambda: course))
+
             def add(self, material):
                 self.material = material
 
@@ -944,6 +1004,7 @@ class UploadIndexingTests(unittest.TestCase):
                 filename="lecture.pdf",
                 file=BytesIO(b"sample pdf bytes"),
             )
+            db = FakeDB()
             with (
                 patch.object(materials, "UPLOAD_DIR", directory),
                 patch.object(materials, "extract_text_from_file", return_value="Lecture text"),
@@ -954,16 +1015,22 @@ class UploadIndexingTests(unittest.TestCase):
                 result = materials.upload_material(
                     file=upload_file,
                     title="Lecture",
-                    subject="CS201",
+                    course_id=11,
                     user=SimpleNamespace(id=2, full_name="Student"), #type:ignore
-                    db=FakeDB(), #type:ignore
+                    db=db, #type:ignore
                 )
 
         self.assertFalse(result["rag_indexed"])
         self.assertIn("AI search indexing failed", result["indexing_warning"])
+        self.assertEqual(db.material.course_id, 11)
+        self.assertEqual(db.material.subject, "CS201")
+        self.assertEqual(result["course_code"], "CS201")
 
     def test_upload_rejects_files_larger_than_two_megabytes(self):
         class FakeDB:
+            def query(self, model):
+                return UploadIndexingTests()._course_query()
+
             def add(self, material):
                 self.fail("Oversized uploads must not be persisted")
 
@@ -977,7 +1044,7 @@ class UploadIndexingTests(unittest.TestCase):
                     materials.upload_material(
                         file=upload_file,
                         title="Large document",
-                        subject="CS201",
+                        course_id=11,
                         user=SimpleNamespace(id=2, full_name="Student"), # type: ignore
                         db=FakeDB(), # type: ignore
                     )

@@ -15,6 +15,8 @@ import {
   XCircle,
   RefreshCw,
   Trash2,
+  Pencil,
+  X,
 } from "lucide-react";
 
 const StudentsPage = () => {
@@ -26,6 +28,10 @@ const StudentsPage = () => {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all"); // all | pending
   const [actionLoading, setActionLoading] = useState(null);
+  const [canEditStudentDetails, setCanEditStudentDetails] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [studentForm, setStudentForm] = useState(null);
+  const [savingStudent, setSavingStudent] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,6 +55,7 @@ const StudentsPage = () => {
       const pendingData = pendingRes.ok ? await pendingRes.json() : { students: [] };
 
       setStudents(studentsData.students || []);
+      setCanEditStudentDetails(studentsData.can_edit_student_details === true);
       setPending(pendingData.students || []);
     } catch (err) {
       setError(err.message || "Something went wrong while loading data");
@@ -92,6 +99,50 @@ const StudentsPage = () => {
     if (!confirmed) return;
 
     await handleAction(`/admin/students/${student.id}`, "DELETE");
+  };
+
+  const openStudentEditor = (student) => {
+    setEditingStudent(student);
+    setStudentForm({
+      full_name: student.full_name || "",
+      email: student.email || "",
+      registration_number: student.registration_number || "",
+      faculty: student.faculty || "",
+      department: student.department || "",
+      level: student.level ? String(student.level) : "",
+    });
+  };
+
+  const handleSaveStudent = async (event) => {
+    event.preventDefault();
+    if (!editingStudent || !studentForm) return;
+    setSavingStudent(true);
+    setError("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/students/${editingStudent.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          ...studentForm,
+          level: studentForm.level ? Number(studentForm.level) : null,
+          registration_number: studentForm.registration_number || null,
+          faculty: studentForm.faculty || null,
+          department: studentForm.department || null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Failed to update student details");
+      setEditingStudent(null);
+      setStudentForm(null);
+      await fetchData();
+    } catch (saveError) {
+      setError(saveError.message || "Failed to update student details");
+    } finally {
+      setSavingStudent(false);
+    }
   };
 
   const filteredStudents =
@@ -225,6 +276,18 @@ const StudentsPage = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        {canEditStudentDetails && (
+                          <button
+                            type="button"
+                            onClick={() => openStudentEditor(student)}
+                            disabled={Boolean(actionLoading)}
+                            className="rounded-lg p-1.5 text-blue-600 transition hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            title="Edit student details"
+                            aria-label={`Edit details for ${student.full_name}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
                         {activeTab === "pending" ? (
                           <>
                             <button
@@ -292,6 +355,97 @@ const StudentsPage = () => {
           </div>
         )}
       </div>
+
+      {editingStudent && studentForm && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingStudent) {
+              setEditingStudent(null);
+              setStudentForm(null);
+            }
+          }}
+        >
+          <form
+            onSubmit={handleSaveStudent}
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800"
+          >
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Edit student details</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+                  Update account and academic information for {editingStudent.full_name}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingStudent(null);
+                  setStudentForm(null);
+                }}
+                disabled={savingStudent}
+                aria-label="Close student editor"
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                ["full_name", "Full name"],
+                ["email", "Email address"],
+                ["registration_number", "Registration number"],
+                ["faculty", "Faculty"],
+                ["department", "Department"],
+              ].map(([field, label]) => (
+                <label key={field} className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  {label}
+                  <input
+                    required={field === "full_name" || field === "email"}
+                    type={field === "email" ? "email" : "text"}
+                    value={studentForm[field]}
+                    onChange={(event) => setStudentForm({ ...studentForm, [field]: event.target.value })}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  />
+                </label>
+              ))}
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Study level
+                <select
+                  value={studentForm.level}
+                  onChange={(event) => setStudentForm({ ...studentForm, level: event.target.value })}
+                  className="mt-1 block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">Not set</option>
+                  {[100, 200, 300, 400, 500, 600].map((level) => (
+                    <option key={level} value={level}>{level} Level</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingStudent(null);
+                  setStudentForm(null);
+                }}
+                disabled={savingStudent}
+                className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingStudent}
+                className="rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+              >
+                {savingStudent ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

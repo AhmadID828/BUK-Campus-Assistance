@@ -16,12 +16,14 @@ class Course(Base):
 
     user = relationship("User")
     topics = relationship("StudyTopic", back_populates="course")
+    materials = relationship("StudyMaterial", back_populates="course")
 
 class StudyTopic(Base):
     __tablename__ = "study_topics"
 
     id = Column(Integer, primary_key=True, index=True)
     course_id = Column(Integer, ForeignKey("courses.id"))
+    material_id = Column(Integer, ForeignKey("study_materials.id", ondelete="CASCADE"), nullable=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     priority = Column(Integer, default=2)                 # 1 = High, 2 = Medium, 3 = Low
