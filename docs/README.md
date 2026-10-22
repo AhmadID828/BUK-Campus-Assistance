@@ -1,94 +1,67 @@
-# BUK Campus Assistant System
+# BUK Campus Assistant
 
-A final year project for Bayero University Kano (BUK) that combines intelligent academic support with campus information and location assistance.
+A student support platform for Bayero University Kano. It brings AI study tools
+and campus information together in one responsive web app.
 
-## Features
-- AI Chatbot (Academic + Campus queries)
-- Lecture notes summarization and Q&A
-- Study material uploads (PDF, DOCX, PPTX; maximum 2 MB per file)
-- Adaptive study planner
-- Campus information system
-- Interactive BUK campus map with location assistance
-- Quiz generator
+## What you can do
 
-## Tech Stack
-- **Backend**: Python + FastAPI
-- **AI**: Ollama (Llama 3.2) + LangChain
-- **Frontend**: Vite + React + Tailwind CSS + Leaflet.js
-- **Database**: PostgreSQL
-- **Vector DB**: ChromaDB
+- Chat with an AI assistant and ask questions about uploaded course materials.
+- Summarize study materials, build a study plan, and generate quizzes.
+- Find campus places on the map and browse frequently asked questions.
+- Manage student approvals and campus events with an administrator account.
+
+## Technology
+
+- Frontend: React, Vite, Tailwind CSS, and Leaflet
+- Backend: Python and FastAPI
+- Data: PostgreSQL and ChromaDB
+- AI: configurable language-model and embedding providers
 
 ## Run locally
 
-1. Start PostgreSQL and Ollama on your computer. Pull the configured Ollama models if needed:
-   `ollama pull gemma2:2b` and `ollama pull nomic-embed-text`.
-2. In `backend/.env`, set `DATABASE_URL` to your local PostgreSQL database and keep
-   `LLM_PROVIDER=ollama`, `OLLAMA_BASE=http://localhost:11434`, and
-   `OLLAMA_MODEL=gemma2:2b`.
-3. From the `backend` directory, activate your Python environment, install
-   `requirements.txt`, and run `uvicorn main:app --reload --port 8000`.
-4. In `frontend/.env`, set `VITE_API_URL=http://localhost:8000`. From `frontend`,
-   run `npm install` and `npm run dev`, then open `http://localhost:5173`.
+You will need Python, Node.js, PostgreSQL, and a configured AI provider.
 
-## Deploy with Vercel and Render
+1. Create `backend/.env` with a local `DATABASE_URL` and the backend AI settings.
+   Keep API keys and database credentials in environment files, not source code.
+2. In `backend`, install `requirements.txt` and start the API:
 
-1. Deploy the `frontend` directory to Vercel and configure `VITE_API_URL` with
-   the public URL of your backend. The Vercel configuration includes a fallback
-   for client-side routes, so refreshing a page such as `/locations` loads the
-   app rather than returning a 404.
-2. Deploy the `backend` directory to Render with the start command
-   `uvicorn main:app --host 0.0.0.0 --port $PORT`. Configure its database,
-   allowed frontend origins, mail, and AI provider through the hosting
-   dashboard. Keep credentials and private service URLs out of source control.
-   Set the health-check path to `/health`.
-3. Local and hosted environments use their own configured databases. Back up
-   hosted data before making operational changes; schema changes should be
-   applied through a reviewed migration process.
-4. Hosted services cannot access Ollama running on a developer's computer.
-   Configure reachable AI and embedding providers for deployed features. Keep
-   provider keys on the backend, never in frontend build variables.
-5. Vercel embeds `VITE_API_URL` when building, so redeploy after changing it.
+   ```powershell
+   pip install -r requirements.txt
+   uvicorn main:app --reload --port 8000
+   ```
 
-## Approve student registrations
+3. Set `VITE_API_URL=http://localhost:8000` in `frontend/.env`.
+4. In `frontend`, install dependencies and start the app:
 
-Students register with the signup page and wait for administrator approval.
-Sign in with an admin account, open **Pending Approvals**, and select **Approve**
-or **Reject** for each registration. Approved students receive access to
-protected study features. The backend sends an approval email when mail
-configuration is available.
+   ```powershell
+   npm install
+   npm run dev
+   ```
 
-## Administrator access
+Open the local URL printed by Vite. The API health check is available at
+`/health`. Uploaded materials are limited to 2 MB per file.
 
-Students and administrators use the same sign-in page at `/login`; successful
-sign-in sends each account to the appropriate dashboard. Admin registration is
-intentionally not public: only the signed-in chief administrator can register
-additional administrators at `/admin/register`. Administrators can review
-student requests from **Pending Approvals**.
+## Deployment
 
-The localhost chief-administrator account remains `admin@buk.edu.ng`. The
-backend defaults to `aidsfaz@gmail.com` on Render and to `admin@buk.edu.ng`
-locally; you can override this with `CHIEF_ADMIN_EMAIL`. For the hosted
-frontend, set Vercel's `VITE_CHIEF_ADMIN_EMAIL` to `aidsfaz@gmail.com` (the
-frontend otherwise selects the chief email based on its API URL). Before
-deploying that change, back up the hosted database and run
-`backend/scripts/change_chief_admin_email.sql` against it. The script stops if
-the previous chief-admin account is missing/ambiguous or if the new email
-already belongs to another account. It changes only the hosted email; the
-existing password is retained. Do not run this SQL against localhost.
+Deploy the `frontend` directory to Vercel and the `backend` directory to a
+Python host such as Render. Configure the frontend API URL, database, allowed
+frontend origins, mail, and AI providers in the hosting dashboards. The backend
+start command is `uvicorn main:app --host 0.0.0.0 --port $PORT`.
 
-## Public campus map and FAQ access
+Use separate local and hosted databases and credentials. Hosted services
+cannot use an Ollama instance running on a developer's computer; configure an
+AI provider that the deployed backend can reach. Frontend `VITE_` settings are
+embedded at build time, so rebuild and redeploy after changing them. Back up
+production data before database changes, and use reviewed migrations for schema
+updates.
 
-Campus locations are available without signing in at `/locations`; the campus
-map and FAQs are linked from the welcome, login, signup, and authenticated
-navigation. The FAQ page includes a back button to return to the previous page.
-Students register through signup and require administrator approval to access
-protected study features. Administrators can manage approvals and, where
-authorized, create additional administrator accounts from the admin interface. The chief
-administrator can remove another administrator's access or restore it later;
-the account's existing records are retained. The chief administrator account
-cannot be removed through the application.
+## Accounts and access
 
-The optional [campus-location replacement script](../backend/scripts/replace_online_campus_locations.sql)
-deletes every existing row in `campus_locations` before inserting the listed
-locations. Back up the target database and review the rows before running it;
-the transaction does not preserve deleted data after it commits.
+Students sign up and wait for an administrator to approve their account.
+Administrators use the same login page. Creating additional administrators is
+restricted to the designated chief administrator. Admin recovery and database
+maintenance scripts are operational tools: review them carefully, back up the
+target database, and never run a hosted-database script against local data.
+
+The campus map and FAQs are available without signing in. Chat, quizzes,
+materials, and planning tools require an approved student account.

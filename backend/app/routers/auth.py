@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
@@ -26,8 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProfileUpdate(BaseModel):
-    email: EmailStr
-    level: int | None = None
+    level: int = Field(ge=100, le=600, multiple_of=100)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -215,19 +214,7 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    email = str(profile.email).strip().lower()
-    existing_user = db.query(User).filter(
-        User.email == email,
-        User.id != current_user.id,
-    ).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    current_user.email = email
     current_user.level = profile.level
     db.commit()
     db.refresh(current_user)
-    access_token = create_access_token(
-        data={"sub": current_user.email, "role": current_user.role}
-    )
-    return {"user": current_user, "access_token": access_token}
+    return {"user": current_user}

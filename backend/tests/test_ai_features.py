@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from fastapi import HTTPException, UploadFile
+from pydantic import ValidationError
 
 from app.ai.llm_service import LLMService, _post_json, generate_answer
 from app.ai.campus_qa import answer_campus_question
@@ -178,6 +179,36 @@ class PasswordStrengthTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIn("at least 8 characters", raised.exception.detail)
+
+
+class ProfileUpdateTests(unittest.TestCase):
+    def test_profile_update_changes_only_the_level(self):
+        account = SimpleNamespace(
+            id=1,
+            email="student@example.com",
+            level=300,
+            role="student",
+        )
+
+        class ProfileDB:
+            def commit(self):
+                pass
+
+            def refresh(self, row):
+                pass
+
+        response = auth.update_profile(
+            auth.ProfileUpdate(level=400),
+            current_user=account,
+            db=ProfileDB(),  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(response["user"].level, 400)
+        self.assertEqual(response["user"].email, "student@example.com")
+
+    def test_profile_update_rejects_levels_outside_the_supported_choices(self):
+        with self.assertRaises(ValidationError):
+            auth.ProfileUpdate(level=650)
 
 
 class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
