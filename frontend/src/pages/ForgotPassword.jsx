@@ -31,29 +31,44 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
-        <div className="mb-6 text-center">
-          <BookOpen className="mx-auto mb-3 text-blue-600" size={36} />
-          <h1 className="text-xl font-bold text-slate-800">Forgot password?</h1>
-          <p className="mt-1 text-sm text-slate-500">Enter your account email to receive a reset link.</p>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 px-4 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950">
+      <div className="w-full max-w-md">
+        <div className="rounded-2xl border border-blue-100 bg-white p-8 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-6 text-center">
+            <BookOpen className="mx-auto mb-3 text-blue-600" size={36} />
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Forgot password?</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Enter your account email to receive a reset link.</p>
+          </div>
+          {message && (
+            <div className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+              {message}
+            </div>
+          )}
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
+              {error}
+            </div>
+          )}
+          <form onSubmit={submit} className="space-y-4">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="your.email@buk.edu.ng"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
+            />
+            <button
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-medium text-white hover:bg-blue-700 disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="animate-spin" size={20} /> : "Send reset link"}
+            </button>
+          </form>
+          <Link to="/login" className="mt-5 block text-center text-sm text-blue-600 hover:underline dark:text-blue-300">
+            Back to login
+          </Link>
         </div>
-        {message && <div className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">{message}</div>}
-        {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-        <form onSubmit={submit} className="space-y-4">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="your.email@buk.edu.ng"
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-          />
-          <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-medium text-white hover:bg-blue-700 disabled:opacity-70">
-            {loading ? <Loader2 className="animate-spin" size={20} /> : "Send reset link"}
-          </button>
-        </form>
-        <Link to="/login" className="mt-5 block text-center text-sm text-blue-600 hover:underline">Back to login</Link>
       </div>
     </div>
   );

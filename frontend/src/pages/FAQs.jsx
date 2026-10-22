@@ -101,31 +101,33 @@ function FAQs() {
     <div className="max-w-3xl mx-auto px-4 py-6 pb-24">
       {/* Header */}
       <div className="mb-6">
-        <button
-          type="button"
-          onClick={goBack}
-          className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700"
-        >
-          <ArrowLeft size={18} />
-          Back
-        </button>
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            <ArrowLeft size={18} />
+            Back
+          </button>
+        </div>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-800 dark:text-slate-100">
           <HelpCircle className="text-blue-600" size={26} />
           Campus FAQs
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Quick answers to common administrative and campus questions
         </p>
         <Link
           to="/locations"
-          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60"
         >
           <MapPin size={16} />
           Explore campus map
         </Link>
         <Link
           to="/chat"
-          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60"
         >
           <MessageCircle size={16} />
           Ask the AI campus assistant
@@ -133,7 +135,7 @@ function FAQs() {
       </div>
 
       {loadError && (
-        <p role="status" className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p role="status" className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
           {loadError} Showing general FAQs for now.
         </p>
       )}
@@ -149,7 +151,7 @@ function FAQs() {
           placeholder="Search questions or answers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 rounded-xl border border-blue-100 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+          className="w-full rounded-xl border border-blue-100 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-900"
         />
       </div>
 
@@ -162,7 +164,7 @@ function FAQs() {
             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition ${
               selectedCategory === cat.id
                 ? "bg-blue-600 text-white"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-blue-50"
+                : "border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             }`}
           >
             {cat.label}
@@ -172,10 +174,10 @@ function FAQs() {
 
       {/* FAQ List */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-blue-100">
+        <div className="rounded-2xl border border-blue-100 bg-white py-16 text-center dark:border-slate-700 dark:bg-slate-900">
           <HelpCircle className="mx-auto text-blue-300 mb-3" size={40} />
-          <p className="text-slate-600 font-medium">No FAQs found</p>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="font-medium text-slate-600 dark:text-slate-300">No FAQs found</p>
+          <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
             Try a different search or category
           </p>
         </div>
@@ -186,18 +188,18 @@ function FAQs() {
             return (
               <div
                 key={faq.id}
-                className="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden"
+                className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
               >
                 <button
                   onClick={() => toggle(faq.id)}
-                  className="w-full flex items-start justify-between gap-3 px-5 py-4 text-left hover:bg-blue-50/50 transition"
+                  className="flex w-full items-start justify-between gap-3 px-5 py-4 text-left transition hover:bg-blue-50/50 dark:hover:bg-slate-800"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-800 text-sm leading-snug">
+                    <p className="text-sm font-medium leading-snug text-slate-800 dark:text-slate-100">
                       {faq.question}
                     </p>
                     {faq.category && (
-                      <span className="inline-block mt-1.5 px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[11px] font-medium capitalize">
+                      <span className="mt-1.5 inline-block rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium capitalize text-blue-600 dark:bg-blue-950 dark:text-blue-300">
                         {faq.category.replace("_", " ")}
                       </span>
                     )}
@@ -211,7 +213,7 @@ function FAQs() {
 
                 {isOpen && (
                   <div className="px-5 pb-4 pt-0">
-                    <div className="text-sm text-slate-600 leading-relaxed border-t border-blue-50 pt-3 whitespace-pre-wrap">
+                    <div className="whitespace-pre-wrap border-t border-blue-50 pt-3 text-sm leading-relaxed text-slate-600 dark:border-slate-700 dark:text-slate-300">
                       {faq.answer}
                     </div>
 

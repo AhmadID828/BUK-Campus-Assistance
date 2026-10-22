@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { MaterialUploadProvider } from "./context/MaterialUploadContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import ThemeSwitcher from "./components/ThemeSwitcher";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLayout from "./layouts/AdminLayout";
 import StudentLayout from "./layouts/StudentLayout";
@@ -34,70 +36,83 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <MaterialUploadProvider>
-          <Routes>
-          <Route path="/" element={<WelcomePage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/admin/login" element={<Navigate to="/login" replace />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/faqs" element={<FAQs />} />
-          <Route path="/locations" element={<PublicCampusMap />} />
-          <Route
-            element={
-              <ProtectedRoute>
-                <StudentLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/materials" element={<MaterialsPage />} />
-            <Route path="/quiz" element={<QuizPage />} />
+        <ThemeProvider>
+          <MaterialUploadProvider>
+            <Routes>
             <Route
-              path="/planner"
+              path="/"
+              element={<WelcomePage />}
+            />
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/admin/login"
+              element={<Navigate to="/login" replace />}
+            />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/faqs" element={<FAQs />} />
+            <Route path="/locations" element={<PublicCampusMap />} />
+            <Route
               element={
-                <ProtectedRoute
-                  requireApproved
-                  featureName="the Study Planner and Adaptive Planner"
-                >
-                  <PlannerPage />
+                <ProtectedRoute>
+                  <StudentLayout />
                 </ProtectedRoute>
               }
-            />
-            <Route path="/events" element={<EventsPage />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/emergency" element={<EmergencyContacts />} />
-            <Route path="/campus-map" element={<MapPage />} />
-          </Route>
+            >
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/materials" element={<MaterialsPage />} />
+              <Route path="/quiz" element={<QuizPage />} />
+              <Route
+                path="/planner"
+                element={
+                  <ProtectedRoute
+                    requireApproved
+                    featureName="the Study Planner and Adaptive Planner"
+                  >
+                    <PlannerPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/events" element={<EventsPage />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/emergency" element={<EmergencyContacts />} />
+              <Route path="/campus-map" element={<MapPage />} />
+            </Route>
 
-          <Route
-            element={
-              <ProtectedRoute requireAdmin>
-                <AdminLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/students" element={<StudentsPage />} />
-            <Route path="/admin/admins" element={<ManageAdmins />} />
-            <Route path="/admin/register" element={<ManageAdmins />} />
-            <Route path="/admin/campus-faqs" element={<FAQs />} />
-            <Route path="/admin/pending" element={<PendingApprovals />} />
-            <Route path="/admin/statistics" element={<StatisticsPage />} />
-            <Route path="/admin/locations" element={<ManageLocations />} />
-            <Route path="/admin/events" element={<ManageEvents />} />
-            <Route path="/admin/faqs" element={<ManageFAQs />} />
             <Route
-              path="/admin/emergency"
-              element={<ManageEmergencyContacts />}
-            />
-          </Route>
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/students" element={<StudentsPage />} />
+              <Route path="/admin/admins" element={<ManageAdmins />} />
+              <Route path="/admin/register" element={<ManageAdmins />} />
+              <Route path="/admin/campus-faqs" element={<FAQs />} />
+              <Route path="/admin/pending" element={<PendingApprovals />} />
+              <Route path="/admin/statistics" element={<StatisticsPage />} />
+              <Route path="/admin/locations" element={<ManageLocations />} />
+              <Route path="/admin/events" element={<ManageEvents />} />
+              <Route path="/admin/faqs" element={<ManageFAQs />} />
+              <Route
+                path="/admin/emergency"
+                element={<ManageEmergencyContacts />}
+              />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </MaterialUploadProvider>
+            <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+            <div className="pointer-events-none fixed bottom-5 right-5 z-[70] sm:bottom-6 sm:right-6">
+              <div className="pointer-events-auto">
+                <ThemeSwitcher />
+              </div>
+            </div>
+          </MaterialUploadProvider>
+        </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>
   );

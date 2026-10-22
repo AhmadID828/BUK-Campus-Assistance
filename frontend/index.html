@@ -5,6 +5,19 @@
     <link rel="icon" type="image/webp" href="/BUk%20logo%202.webp" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BUK Campus Assistant System</title>
+    <script>
+      let theme = "system";
+      try {
+        theme = localStorage.getItem("buk-theme") || "system";
+      } catch (error) {
+        console.warn("Unable to read the saved theme preference.", error);
+      }
+      if (!["light", "dark", "system"].includes(theme)) theme = "system";
+      const darkMode = theme === "dark" ||
+        (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.classList.toggle("dark", darkMode);
+      document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
+    </script>
   </head>
   <body>
     <div id="root"></div>

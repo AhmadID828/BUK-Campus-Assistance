@@ -18,6 +18,12 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root.dark {
+  --text: #e2e8f0;
+  --background: #0f172a;
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -33,6 +39,7 @@ body,
 body {
   min-height: 100vh;
   background: var(--background);
+  color: var(--text);
 }
 
 button,
@@ -59,6 +66,11 @@ select {
   background: #bfdbfe;
 }
 
+:root.dark ::selection {
+  color: #eff6ff;
+  background: #1e40af;
+}
+
 :focus-visible {
   outline: 3px solid #60a5fa;
   outline-offset: 2px;
@@ -83,6 +95,10 @@ select {
 ::-webkit-scrollbar-thumb {
   background: #93c5fd;
   border-radius: 9999px;
+}
+
+:root.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
 }
 
 ::-webkit-scrollbar-track {

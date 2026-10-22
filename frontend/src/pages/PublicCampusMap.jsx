@@ -4,8 +4,8 @@ import MapPage from "./MapPage";
 
 export default function PublicCampusMap() {
   return (
-    <div className="min-h-screen bg-sky-50">
-      <header className="border-b border-blue-100 bg-white">
+    <div className="min-h-screen bg-sky-50 dark:bg-slate-950">
+      <header className="border-b border-blue-100 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link
             to="/"
@@ -18,7 +18,7 @@ export default function PublicCampusMap() {
           <nav className="flex items-center gap-2">
             <Link
               to="/faqs"
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-slate-800"
             >
               <HelpCircle size={17} />
               FAQs
@@ -33,10 +33,10 @@ export default function PublicCampusMap() {
           </nav>
         </div>
       </header>
-      <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 pt-5 text-sm font-semibold text-blue-800 sm:px-6">
+      <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 pt-5 text-sm font-semibold text-blue-800 dark:text-blue-300 sm:px-6">
         <MapPin size={18} />
         Public campus map
-        <span className="font-normal text-slate-500">· Browse locations without signing in</span>
+        <span className="font-normal text-slate-500 dark:text-slate-400">· Browse locations without signing in</span>
       </div>
       <MapPage />
     </div>
