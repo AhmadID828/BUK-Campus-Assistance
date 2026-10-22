@@ -38,6 +38,7 @@ const AdminLayout = () => {
       ? [{ name: "Register Admin", path: "/admin/register", icon: UserPlus }]
       : []),
   ];
+  const currentPage = menuItems.find((item) => location.pathname === item.path);
 
   const renderMenuItems = () =>
     menuItems.map((item) => {
@@ -132,7 +133,7 @@ const AdminLayout = () => {
 
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-blue-100 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800 sm:px-6 sm:py-4">
+        <header className="flex items-center gap-3 border-b border-blue-100 bg-white px-4 py-3.5 dark:border-gray-700 dark:bg-gray-800 sm:px-6">
           <button
             type="button"
             aria-label="Open admin navigation"
@@ -143,11 +144,11 @@ const AdminLayout = () => {
             <Menu size={20} />
           </button>
           <div className="min-w-0">
-            <h2 className="truncate font-semibold text-gray-800 dark:text-white">
-              Admin Dashboard
+            <h2 className="truncate font-semibold text-slate-900 dark:text-white">
+              {currentPage?.name || "Admin Dashboard"}
             </h2>
             <p className="truncate text-xs text-slate-500 dark:text-gray-400 md:hidden">
-              {user?.full_name}
+              Signed in as {user?.full_name}
             </p>
           </div>
         </header>

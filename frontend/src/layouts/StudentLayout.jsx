@@ -58,6 +58,8 @@ const StudentLayout = () => {
   ];
 
   const isActive = (path) => location.pathname === path;
+  const currentPage = menuItems.find((item) => isActive(item.path));
+  const firstName = user?.full_name?.trim().split(/\s+/)[0];
 
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden bg-sky-50 dark:bg-gray-900">
@@ -77,6 +79,7 @@ const StudentLayout = () => {
               <Link
                 key={item.path}
                 to={isLocked ? "#" : item.path}
+                aria-current={isActive(item.path) ? "page" : undefined}
                 onClick={(e) => {
                   if (isLocked) e.preventDefault();
                 }}
@@ -196,22 +199,26 @@ const StudentLayout = () => {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <PendingApprovalBanner user={user} />
 
-        <header className="bg-white dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 px-4 py-4 sm:px-6 flex items-center gap-3">
+        <header className="flex items-center gap-3 border-b border-blue-100 bg-white px-4 py-3.5 dark:border-gray-700 dark:bg-gray-800 sm:px-6">
           <button
             type="button"
-            aria-label="Open navigation"
+            aria-label="Open student navigation"
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen(true)}
             className="rounded-xl border border-blue-100 p-2 text-slate-700 hover:bg-blue-50 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700 md:hidden"
           >
             <Menu size={20} />
           </button>
-          <div>
-            <h2 className="font-semibold text-gray-800 dark:text-white">
-              Welcome, {user?.full_name}
+          <div className="min-w-0">
+            <h2 className="truncate font-semibold text-slate-900 dark:text-white">
+              {location.pathname === "/dashboard"
+                ? `Welcome back${firstName ? `, ${firstName}` : ""}`
+                : currentPage?.name || "Student Portal"}
             </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {user?.department} • Level {user?.level}
+            <p className="truncate text-xs text-slate-500 dark:text-gray-400">
+              {[user?.department, user?.level && `Level ${user.level}`]
+                .filter(Boolean)
+                .join(" • ")}
             </p>
           </div>
         </header>

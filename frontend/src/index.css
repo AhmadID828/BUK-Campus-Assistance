@@ -8,6 +8,7 @@
   --primary-light: #dbeafe;
   --text: #1e293b;
   --background: #f8fafc;
+  color-scheme: light;
   font-family: "Segoe UI", system-ui, sans-serif;
   color: var(--text);
   background: var(--background);
@@ -44,6 +45,34 @@ select {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+textarea,
+select {
+  accent-color: var(--primary);
+}
+
+::selection {
+  color: #1e3a8a;
+  background: #bfdbfe;
+}
+
+:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::-webkit-scrollbar {
