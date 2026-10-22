@@ -7,6 +7,9 @@ import {
   getPasswordRequirements,
   isStrongPassword,
 } from "../utils/password";
+import { faculties, facultyDepartments } from "../data/bukFaculties";
+
+const OTHER_DEPARTMENT = "__other_department__";
 
 function Signup() {
   const [form, setForm] = useState({
@@ -17,6 +20,7 @@ function Signup() {
     reg_number: "",
     faculty: "",
     department: "",
+    otherDepartment: "",
     level: "",
   });
   const [loading, setLoading] = useState(false);
@@ -24,8 +28,15 @@ function Signup() {
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === "faculty"
+        ? { department: "", otherDepartment: "" }
+        : {}),
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -43,6 +54,15 @@ function Signup() {
       return;
     }
 
+    const department =
+      form.department === OTHER_DEPARTMENT
+        ? form.otherDepartment.trim()
+        : form.department;
+    if (!department) {
+      setError("Select or enter your department.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -55,7 +75,7 @@ function Signup() {
           password: form.password,
           registration_number: form.reg_number,
           faculty: form.faculty,
-          department: form.department,
+          department,
           level: parseInt(form.level) || 100,
         }),
       });
@@ -153,15 +173,20 @@ function Signup() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Faculty
               </label>
-              <input
-                type="text"
+              <select
                 name="faculty"
                 value={form.faculty}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Faculty of Computing"
-              />
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-medium text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">Select your faculty</option>
+                {faculties.map((faculty) => (
+                  <option key={faculty} value={faculty}>
+                    {faculty}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -169,15 +194,40 @@ function Signup() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Department
                 </label>
-                <input
-                  type="text"
+                <select
                   name="department"
                   value={form.department}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                  placeholder="Computer Science"
-                />
+                  disabled={!form.faculty}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-medium text-gray-900 focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">
+                    {!form.faculty
+                      ? "Select a faculty first"
+                      : facultyDepartments[form.faculty]?.length
+                        ? "Select your department"
+                        : "Enter your department"}
+                  </option>
+                  {(facultyDepartments[form.faculty] || []).map((department) => (
+                    <option key={department} value={department}>
+                      {department}
+                    </option>
+                  ))}
+                  <option value={OTHER_DEPARTMENT}>Other / not listed</option>
+                </select>
+                {form.department === OTHER_DEPARTMENT && (
+                  <input
+                    type="text"
+                    name="otherDepartment"
+                    value={form.otherDepartment}
+                    onChange={handleChange}
+                    required
+                    maxLength={120}
+                    className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
+                    placeholder="Enter your department name"
+                  />
+                )}
               </div>
 
               <div>
