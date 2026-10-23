@@ -43,8 +43,9 @@ You will need Python, Node.js, PostgreSQL, and a configured AI provider.
 Open the local URL printed by Vite. The API health check is available at
 `/health`. Uploaded materials are limited to 2 MB per file.
 
-Choose Light, Dark, or System from the Theme selector. The preference is saved
-in the browser; System follows the device's current appearance setting.
+Use the floating appearance button to choose Light, Dark, or System. The
+preference is saved in the browser; System follows the device's current
+appearance setting.
 
 Study chat uses the semantic index when the configured embedding provider is
 available. If semantic indexing fails after an upload, the saved material is
