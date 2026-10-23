@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { API_BASE_URL } from "../config";
 import {
   exceedsPasswordByteLimit,
@@ -11,6 +12,8 @@ export default function ResetPassword() {
   const [params] = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,15 +76,26 @@ export default function ResetPassword() {
           )}
           {!message && token && (
             <form onSubmit={submit} className="space-y-4">
-              <input
-                type="password"
-                required
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="New password"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="New password"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-14 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-1 flex min-h-11 w-12 touch-manipulation items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
+                </button>
+              </div>
               <ul className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" aria-live="polite">
                 {getPasswordRequirements(password).map((requirement) => (
                   <li
@@ -97,15 +111,26 @@ export default function ResetPassword() {
                   Password is too long. Choose a shorter password.
                 </p>
               )}
-              <input
-                type="password"
-                required
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(event) => setConfirm(event.target.value)}
-                placeholder="Confirm new password"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(event) => setConfirm(event.target.value)}
+                  placeholder="Confirm new password"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-14 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
+                  aria-pressed={showConfirmPassword}
+                  className="absolute inset-y-0 right-1 flex min-h-11 w-12 touch-manipulation items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  {showConfirmPassword ? <EyeOff size={21} /> : <Eye size={21} />}
+                </button>
+              </div>
               <button
                 disabled={loading || !isStrongPassword(password) || password !== confirm}
                 className="w-full rounded-xl bg-blue-600 py-3.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"

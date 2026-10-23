@@ -12,25 +12,30 @@ import {
   MapPin,
   ShieldCheck,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 const features = [
   {
     icon: BookOpen,
+    to: "/materials",
     title: "Study with your own materials",
     description: "Keep lecture notes together and turn them into concise summaries.",
   },
   {
     icon: Brain,
+    to: "/chat",
     title: "Practice with AI",
     description: "Ask study questions and generate quizzes based on your materials.",
   },
   {
     icon: CalendarDays,
+    to: "/planner",
     title: "Make a study plan",
     description: "Organize courses, plan revision, and keep track of progress.",
   },
   {
     icon: MapPin,
+    to: "/locations",
     title: "Find campus support",
     description: "Explore campus locations, useful FAQs, and important contacts.",
   },
@@ -174,6 +179,8 @@ function CampusCarousel() {
 }
 
 export default function WelcomePage() {
+  const { isApproved, isStudent } = useAuth();
+
   return (
     <main className="min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-indigo-100 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 dark:text-slate-100">
       <header className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-y-3 px-5 py-5 sm:px-8">
@@ -240,17 +247,41 @@ export default function WelcomePage() {
               </span>
             </div>
             <div className="space-y-3">
-              {features.map(({ icon: Icon, title, description }, index) => (
-                <div key={title} className="flex gap-3 rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${index % 2 ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300" : "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"}`}>
-                    <Icon size={19} />
-                  </span>
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h2>
-                    <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{description}</p>
+              {features.map(({ icon: Icon, title, description, to }, index) => {
+                const isCampusLink = to === "/locations";
+                const canNavigate = isCampusLink || (isStudent && isApproved);
+                const className = `flex gap-3 rounded-2xl border border-slate-100 bg-white p-4 transition dark:border-slate-700 dark:bg-slate-800 ${
+                  canNavigate
+                    ? "cursor-pointer hover:border-blue-200 hover:bg-blue-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:border-blue-800 dark:hover:bg-slate-700"
+                    : ""
+                }`;
+                const content = (
+                  <>
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${index % 2 ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300" : "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"}`}>
+                      <Icon size={19} />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">{description}</span>
+                    </span>
+                  </>
+                );
+
+                return canNavigate ? (
+                  <Link
+                    key={title}
+                    to={to}
+                    className={className}
+                    aria-label={`${title}: ${description}`}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={title} className={className}>
+                    {content}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <p className="mt-5 text-center text-xs text-slate-400 dark:text-slate-500">
               Built for Bayero University Kano students

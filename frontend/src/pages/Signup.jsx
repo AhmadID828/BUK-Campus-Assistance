@@ -340,9 +340,9 @@ function Signup() {
                   onClick={() => setShowPassword((visible) => !visible)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   aria-pressed={showPassword}
-                  className="absolute inset-y-0 right-2 flex min-h-11 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-300 dark:hover:bg-slate-600"
+                  className="absolute inset-y-0 right-1 flex min-h-11 w-12 touch-manipulation items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-200 dark:hover:bg-slate-600"
                 >
-                  {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                  {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
                 </button>
               </div>
               {fieldErrors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.password}</p>}
@@ -381,9 +381,9 @@ function Signup() {
                   onClick={() => setShowConfirmPassword((visible) => !visible)}
                   aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
                   aria-pressed={showConfirmPassword}
-                  className="absolute inset-y-0 right-2 flex min-h-11 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-300 dark:hover:bg-slate-600"
+                  className="absolute inset-y-0 right-1 flex min-h-11 w-12 touch-manipulation items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-200 dark:hover:bg-slate-600"
                 >
-                  {showConfirmPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                  {showConfirmPassword ? <EyeOff size={21} /> : <Eye size={21} />}
                 </button>
               </div>
               {fieldErrors.confirmPassword && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.confirmPassword}</p>}
