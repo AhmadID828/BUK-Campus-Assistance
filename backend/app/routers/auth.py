@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -16,7 +16,11 @@ from app.utils.auth import (
     ALGORITHM,
 )
 from app.utils.dependencies import get_current_user
-from app.utils.email import get_frontend_url, send_reset_email
+from app.utils.email import (
+    get_frontend_url,
+    is_local_reset_mode,
+    send_reset_email,
+)
 from datetime import datetime, timedelta
 import logging
 from jose import jwt, JWTError
@@ -41,10 +45,14 @@ class ResetPasswordRequest(BaseModel):
 @router.post("/forgot-password")
 async def forgot_password(
     request: ForgotPasswordRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
 ):
     email = str(request.email).strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email).first()
+    response_data = {
+        "message": "If an account exists for that email, a password reset link has been sent."
+    }
 
     if user:
         reset_token = jwt.encode(
@@ -56,17 +64,24 @@ async def forgot_password(
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
-        try:
-            await send_reset_email(
-                user.email,
-                f"{get_frontend_url()}/reset-password?token={reset_token}",
+        reset_link = (
+            f"{get_frontend_url()}/reset-password?token={reset_token}"
+        )
+        if is_local_reset_mode(
+            http_request.client.host if http_request.client else None
+        ):
+            response_data["message"] = (
+                "Local development reset link created. Open the link below "
+                "to choose a new password."
             )
-        except Exception:
-            logger.exception("Failed to send password reset email")
+            response_data["development_reset_link"] = reset_link
+        else:
+            try:
+                await send_reset_email(user.email, reset_link)
+            except Exception:
+                logger.exception("Failed to send password reset email")
 
-    return {
-        "message": "If an account exists for that email, a password reset link has been sent."
-    }
+    return response_data
 
 
 @router.post("/reset-password")

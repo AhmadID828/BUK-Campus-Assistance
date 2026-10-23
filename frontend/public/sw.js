@@ -1,11 +1,11 @@
-const CACHE_NAME = "buk-campus-map-tiles-v2";
-const PREVIOUS_CACHE_NAME = "buk-map-tiles-v1";
+const CACHE_NAME = "buk-campus-map-tiles-v3";
+const PREVIOUS_CACHE_NAMES = ["buk-map-tiles-v1", "buk-campus-map-tiles-v2"];
 const TILE_HOST = "tile.openstreetmap.org";
 const CAMPUS_BOUNDS = {
-  south: 11.93,
-  west: 8.36,
-  north: 12.04,
-  east: 8.53,
+  south: 11.955,
+  west: 8.405,
+  north: 11.992,
+  east: 8.49,
 };
 
 function isCampusTile(url) {
@@ -40,9 +40,9 @@ self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .delete(PREVIOUS_CACHE_NAME)
-      .then(() => self.clients.claim()),
+    Promise.all(
+      PREVIOUS_CACHE_NAMES.map((cacheName) => caches.delete(cacheName)),
+    ).then(() => self.clients.claim()),
   );
 });
 

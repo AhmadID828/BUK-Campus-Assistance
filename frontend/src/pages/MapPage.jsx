@@ -9,6 +9,7 @@ const categoryIcons = {
   department: Building2,
   hostel: Home,
   emergency: AlertTriangle,
+  campus: Building2,
 };
 
 const categories = [
@@ -16,7 +17,9 @@ const categories = [
   { id: "faculty", label: "Faculty" },
   { id: "department", label: "Departments" },
   { id: "hostel", label: "Hostels" },
+  {id: "security", label: "Security"},
   { id: "emergency", label: "Emergency" },
+  { id: "campus", label: "Campus" },
   { id: "admin", label: "Administration" },
   { id: "other", label: "Facilities" },
 ];

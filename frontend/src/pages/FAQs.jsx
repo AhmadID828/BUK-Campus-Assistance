@@ -92,6 +92,8 @@ function FAQs() {
     { id: "academic", label: "Academic" },
     { id: "student_affairs", label: "Student Affairs" },
     { id: "navigation", label: "Navigation" },
+    { id: "others", label: "Facilities" },
+    { id: "security", label: "Security" },
     { id: "emergency", label: "Emergency" },
   ];
 

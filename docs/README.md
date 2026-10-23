@@ -27,11 +27,14 @@ You will need Python, Node.js, PostgreSQL, and a configured AI provider.
 
 1. Create `backend/.env` with a local `DATABASE_URL` and the backend AI settings.
    Keep API keys and database credentials in environment files, not source code.
-   Configure `MAIL_USERNAME`, `MAIL_PASSWORD`, and `MAIL_FROM` for approval and
-   password-reset emails. Set `FRONTEND_URL` to the address where this frontend
-   is running (for example, `http://localhost:5173` locally). The default reset
-   link points to localhost, so a deployed backend must use the deployed
-   frontend URL or emailed reset links will open the wrong site.
+   For local password-reset testing without SMTP, set
+   `APP_ENV=development`, `RESET_EMAIL_MODE=console`, and
+   `FRONTEND_URL=http://localhost:5173` in `backend/.env`. The local forgot
+   password page then displays a reset link directly; this mode is only exposed
+   to loopback requests and must not be enabled in production. Restart the
+   backend after changing these settings. To send real approval and reset
+   emails instead, configure `MAIL_USERNAME`, `MAIL_PASSWORD`, and `MAIL_FROM`;
+   leave `RESET_EMAIL_MODE` unset or set it to `smtp`.
 2. In `backend`, install `requirements.txt` and start the API:
 
    ```powershell
@@ -85,7 +88,9 @@ provider; configure `GROQ_API_KEY` on the backend. Frontend `VITE_` settings are
 embedded at build time, so rebuild and redeploy after changing them. Back up
 production data before database changes, and use reviewed migrations for schema
 updates. Apply `backend/migrations/003_link_materials_to_courses.sql` before
-deploying the course-linked materials and planner changes.
+deploying the course-linked materials and planner changes, and
+`backend/migrations/004_add_old_campus_location.sql` to add the BUK Old Campus
+map marker.
 
 ## Accounts and access
 

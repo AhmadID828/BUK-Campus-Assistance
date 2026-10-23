@@ -6,12 +6,14 @@ import { API_BASE_URL } from "../config";
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [developmentResetLink, setDevelopmentResetLink] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (event) => {
     event.preventDefault();
     setMessage("");
+    setDevelopmentResetLink("");
     setError("");
     setLoading(true);
     try {
@@ -23,6 +25,7 @@ export default function ForgotPassword() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Unable to send reset email");
       setMessage(data.message);
+      setDevelopmentResetLink(data.development_reset_link || "");
     } catch (requestError) {
       setError(requestError.message || "Unable to send reset email");
     } finally {
@@ -54,7 +57,15 @@ export default function ForgotPassword() {
           </div>
           {message && (
             <div role="status" className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
-              {message}
+              <p>{message}</p>
+              {developmentResetLink && (
+                <a
+                  href={developmentResetLink}
+                  className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-blue-950"
+                >
+                  Open local reset link
+                </a>
+              )}
             </div>
           )}
           {error && (
@@ -79,9 +90,9 @@ export default function ForgotPassword() {
             </button>
           </form>
           <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
-            If no email arrives, check your spam folder. Reset emails depend on
-            the server's email settings; contact your administrator if the
-            problem continues.
+            In local development, enable the backend's local reset mode to
+            display a test link here. Outside local development, check your
+            spam folder or ask the administrator to check email configuration.
           </p>
           <Link to="/login" className="mt-5 block text-center text-sm text-blue-600 hover:underline dark:text-blue-300">
             Back to login

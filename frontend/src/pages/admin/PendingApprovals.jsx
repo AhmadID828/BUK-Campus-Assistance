@@ -23,10 +23,12 @@ const PendingApprovals = () => {
   const [actionLoading, setActionLoading] = useState(null);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const fetchPending = async () => {
-    setLoading(true);
-    setError("");
-    setSuccessMessage("");
+  const fetchPending = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError("");
+      setSuccessMessage("");
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}/admin/students/pending`, {
@@ -42,14 +44,19 @@ const PendingApprovals = () => {
       const data = await response.json();
       setPendingStudents(data.students || []);
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      if (!silent) setError(err.message || "Something went wrong");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchPending();
+    const refreshTimer = window.setInterval(
+      () => fetchPending({ silent: true }),
+      15000,
+    );
+    return () => window.clearInterval(refreshTimer);
   }, [token]);
 
   const handleAction = async (studentId, action) => {
@@ -73,13 +80,15 @@ const PendingApprovals = () => {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
+        const errData = await response.json().catch(() => ({}));
         throw new Error(errData.detail || "Action failed");
       }
 
       const result = await response.json();
       setSuccessMessage(result.message || "Action completed successfully");
-      await fetchPending();
+      setPendingStudents((students) =>
+        students.filter((student) => student.id !== studentId),
+      );
     } catch (err) {
       setError(err.message);
     } finally {
