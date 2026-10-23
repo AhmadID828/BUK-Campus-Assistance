@@ -27,6 +27,11 @@ You will need Python, Node.js, PostgreSQL, and a configured AI provider.
 
 1. Create `backend/.env` with a local `DATABASE_URL` and the backend AI settings.
    Keep API keys and database credentials in environment files, not source code.
+   Configure `MAIL_USERNAME`, `MAIL_PASSWORD`, and `MAIL_FROM` for approval and
+   password-reset emails. Set `FRONTEND_URL` to the address where this frontend
+   is running (for example, `http://localhost:5173` locally). The default reset
+   link points to localhost, so a deployed backend must use the deployed
+   frontend URL or emailed reset links will open the wrong site.
 2. In `backend`, install `requirements.txt` and start the API:
 
    ```powershell
@@ -67,7 +72,10 @@ configuration to restore semantic search.
 
 Deploy the `frontend` directory to Vercel and the `backend` directory to a
 Python host such as Render. Configure the frontend API URL, database, allowed
-frontend origins, mail, and AI providers in the hosting dashboards. The backend
+frontend origins, mail (`MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, and
+optional `MAIL_SERVER`/`MAIL_PORT`), `FRONTEND_URL`, and AI providers in the
+hosting dashboards. `FRONTEND_URL` must be the public frontend address so
+approval and password-reset email links return to the deployed app. The backend
 start command is `uvicorn main:app --host 0.0.0.0 --port $PORT`.
 
 Use separate local and hosted databases and credentials. Hosted services

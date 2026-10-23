@@ -1,9 +1,13 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
   BookOpen,
   Brain,
+  Building2,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   HelpCircle,
   MapPin,
   ShieldCheck,
@@ -31,6 +35,143 @@ const features = [
     description: "Explore campus locations, useful FAQs, and important contacts.",
   },
 ];
+
+const campusSlides = [
+  {
+    title: "Welcome to Bayero University Kano",
+    description: "Welcome to Bayero University Kano.",
+    image: "/BUk%20main%20gate.jpg",
+  },
+  {
+    title: "Faculty of Computing",
+    description: "The Faculty of Computing at Bayero University Kano.",
+    image: "/faculty-of-computing.webp",
+  },
+  {
+    title: "Bayero University Kano",
+    description: "Aerial view of the BUK campus.",
+    image: "/buk-campus-aerial.jpg",
+  },
+  {
+    title: "Old Site Main Gate",
+    description: "The historic main entrance at BUK Old Site.",
+    image: "/old-site-main-gate.webp",
+  },
+  {
+    title: "Students' Affairs",
+    description: "Students' Affairs Division at Bayero University Kano.",
+    image: "/students-affairs.jpg",
+  },
+  {
+    title: "Senate Building",
+    description: "Abubakar Rasheed Senate Building at Bayero University Kano.",
+    image: "/senate-building.jpg",
+  },
+  {
+    title: "BUK Hostels",
+    description: "Student hostel accommodation at Bayero University Kano.",
+    image: "/hostel.jpg",
+  },
+];
+
+function CampusCarousel() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [unavailableImages, setUnavailableImages] = useState(() => new Set());
+  const [paused, setPaused] = useState(false);
+  const activeSlide = campusSlides[activeIndex];
+  const imageUnavailable = unavailableImages.has(activeSlide.image);
+  const slideCount = campusSlides.length;
+
+  useEffect(() => {
+    if (paused) return undefined;
+    const timer = window.setInterval(() => {
+      setActiveIndex((index) => (index + 1) % slideCount);
+    }, 1300);
+    return () => window.clearInterval(timer);
+  }, [paused, slideCount]);
+
+  const changeSlide = (offset) => {
+    setActiveIndex((index) => (index + offset + slideCount) % slideCount);
+  };
+
+  return (
+    <div
+      className="relative mb-6 h-48 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 sm:h-56"
+      aria-roledescription="carousel"
+      aria-label="Bayero University Kano campus highlights"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false);
+      }}
+    >
+      {!imageUnavailable ? (
+        <img
+          key={activeSlide.image}
+          src={activeSlide.image}
+          alt={activeSlide.title}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() =>
+            setUnavailableImages((current) =>
+              new Set(current).add(activeSlide.image),
+            )
+          }
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(ellipse_at_75%_5%,rgba(125,211,252,0.42),transparent_36%),linear-gradient(135deg,#1d4ed8,#312e81_58%,#0f172a)]">
+          <div className="flex h-32 w-44 items-end justify-center rounded-t-[2.5rem] border-x-4 border-t-4 border-white/50 bg-white/10 px-5 pb-3 shadow-2xl backdrop-blur-sm">
+            <Building2 className="mb-1 h-16 w-16 text-white/90" strokeWidth={1.4} />
+          </div>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/10 to-transparent" />
+      {imageUnavailable && (
+        <span className="absolute right-3 top-3 rounded-full bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-white">
+          Illustrated highlight
+        </span>
+      )}
+      <div className="absolute inset-x-3 top-1/2 flex -translate-y-1/2 justify-between">
+        <button
+          type="button"
+          onClick={() => changeSlide(-1)}
+          aria-label="Previous campus highlight"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950/45 text-white backdrop-blur hover:bg-slate-950/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <button
+          type="button"
+          onClick={() => changeSlide(1)}
+          aria-label="Next campus highlight"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-950/45 text-white backdrop-blur hover:bg-slate-950/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+      <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
+        <div aria-live="polite" aria-atomic="true">
+          <p className="text-sm font-semibold text-white">{activeSlide.title}</p>
+          <p className="mt-1 line-clamp-1 text-xs text-white/80">{activeSlide.description}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {campusSlides.map((slide, index) => (
+            <button
+              key={slide.title}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              aria-label={`Show ${slide.title}`}
+              aria-current={activeIndex === index ? "true" : undefined}
+              className={`h-2.5 rounded-full transition-all ${
+                activeIndex === index ? "w-6 bg-white" : "w-2.5 bg-white/60 hover:bg-white"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function WelcomePage() {
   return (
@@ -88,17 +229,7 @@ export default function WelcomePage() {
         <div className="relative">
           <div className="absolute -inset-6 rounded-[2.5rem] bg-gradient-to-br from-blue-200/60 to-indigo-200/40 blur-2xl dark:from-blue-900/40 dark:to-indigo-900/30" />
           <div className="relative rounded-[2rem] border border-white bg-white/90 p-5 shadow-2xl shadow-blue-900/10 dark:border-slate-700 dark:bg-slate-900/90 sm:p-7">
-            <div className="relative mb-6 h-40 overflow-hidden rounded-2xl">
-              <img
-                src="/BUk%20main%20gate.jpg"
-                alt="Main entrance to Bayero University Kano"
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
-              <p className="absolute bottom-3 left-4 text-sm font-semibold text-white">
-                Welcome to Bayero University Kano
-              </p>
-            </div>
+            <CampusCarousel />
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">A better study routine</p>

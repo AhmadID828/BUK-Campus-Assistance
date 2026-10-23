@@ -64,7 +64,7 @@ const StudentLayout = () => {
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden bg-sky-50 dark:bg-gray-900">
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-gray-800 border-r border-blue-100 dark:border-gray-700 hidden md:flex flex-col">
+      <aside className="flex min-h-0 w-64 flex-col border-r border-blue-100 bg-white dark:border-gray-700 dark:bg-gray-800 hidden md:flex">
         <div className="p-5 border-b border-blue-100 dark:border-gray-700">
           <Link to="/" className="flex w-fit items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label="BUK Campus Assistant System home">
             <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-11 w-11 rounded-xl bg-white/70 object-contain p-0.5 opacity-90 shadow-sm ring-1 ring-blue-100/80 transition-opacity hover:opacity-100" />
@@ -75,7 +75,7 @@ const StudentLayout = () => {
           </Link>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isLocked = item.requireApproved && !isApproved;
@@ -204,7 +204,7 @@ const StudentLayout = () => {
       )}
 
       {/* Main Content */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="relative z-0 isolate flex min-h-0 min-w-0 flex-1 flex-col">
         <PendingApprovalBanner user={user} />
 
         <header className="flex items-center gap-3 border-b border-blue-100 bg-white px-4 py-3.5 dark:border-gray-700 dark:bg-gray-800 sm:px-6">

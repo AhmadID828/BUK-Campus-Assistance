@@ -40,7 +40,7 @@ export default function ForgotPassword() {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Enter your account email to receive a reset link.</p>
           </div>
           {message && (
-            <div className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+            <div role="status" className="mb-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
               {message}
             </div>
           )}
@@ -65,6 +65,11 @@ export default function ForgotPassword() {
               {loading ? <Loader2 className="animate-spin" size={20} /> : "Send reset link"}
             </button>
           </form>
+          <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            If no email arrives, check your spam folder. Reset emails depend on
+            the server's email settings; contact your administrator if the
+            problem continues.
+          </p>
           <Link to="/login" className="mt-5 block text-center text-sm text-blue-600 hover:underline dark:text-blue-300">
             Back to login
           </Link>

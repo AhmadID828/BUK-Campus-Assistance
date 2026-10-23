@@ -39,9 +39,16 @@ export default function ResetPassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
       });
-      const data = await response.json();
-      if (!response.ok) setError(data.detail || "Reset link is invalid or expired");
-      else setMessage(data.message);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(
+          typeof data.detail === "string"
+            ? data.detail
+            : "Reset link is invalid or expired. Request a new link and try again.",
+        );
+      } else {
+        setMessage(data.message || "Password reset successfully.");
+      }
     } catch {
       setError("Unable to reach the server. Please try again.");
     } finally {
@@ -55,12 +62,12 @@ export default function ResetPassword() {
         <div className="rounded-2xl border border-blue-100 bg-white p-8 shadow-xl dark:border-slate-700 dark:bg-slate-900">
           <h1 className="mb-5 text-xl font-bold text-slate-800 dark:text-slate-100">Set a new password</h1>
           {message && (
-            <div className="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/50 dark:text-green-300">
+            <div role="status" className="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/50 dark:text-green-300">
               {message} <Link to="/login" className="font-medium underline">Sign in</Link>
             </div>
           )}
           {error && (
-            <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
+            <div role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
               {error}
             </div>
           )}

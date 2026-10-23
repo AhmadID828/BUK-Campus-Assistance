@@ -252,8 +252,8 @@ const QuizPage = () => {
         />
         <div className="space-y-4">
           {(activeQuiz.questions || []).map((q, i) => (
-            <div key={i} className="bg-white dark:bg-gray-800 rounded-xl border p-4">
-              <p className="font-medium text-gray-800 dark:text-white mb-3">
+            <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+              <p className="mb-3 font-medium text-gray-800 dark:text-white">
                 {i + 1}. {q.question}
               </p>
               <div className="space-y-2">
@@ -263,16 +263,13 @@ const QuizPage = () => {
                 ).map(([value, option]) => {
                   const label = typeof option === "string" ? option : option.label || option;
                   return (
-                    <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <label key={value} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                       <input
                         type="radio"
                         name={`q-${i}`}
                         value={value}
                         checked={answers[String(i)] === value}
-                        onChange={() =>
-                          setAnswers({ ...answers, [String(i)]: value })
-                        }
-
+                        onChange={() => setAnswers({ ...answers, [String(i)]: value })}
                       />
                       <span>{value}. {label}</span>
                     </label>
@@ -288,7 +285,7 @@ const QuizPage = () => {
           ))}
           <button
             onClick={handleSubmit}
-            className="px-5 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium"
+            className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700"
           >
             Submit Quiz
           </button>
@@ -304,13 +301,13 @@ const QuizPage = () => {
           title="Quiz Review"
           subtitle={`${quizResult.quiz_title || "Completed quiz"} · Score: ${quizResult.score ?? 0}%`}
         />
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-gray-600 dark:text-gray-300">
             Review each answer to see what you got right and what to improve.
           </p>
           <button
             onClick={() => setQuizResult(null)}
-            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm"
+            className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600"
           >
             Back to Quiz Center
           </button>
@@ -328,10 +325,10 @@ const QuizPage = () => {
               <p className="font-medium text-gray-800 dark:text-white">
                 {index + 1}. {item.question}
               </p>
-              <p className="mt-2 text-sm">
+              <p className="mt-2 text-sm text-gray-700 dark:text-gray-200">
                 Your answer: <strong>{item.selected_answer || "Not answered"}</strong>
               </p>
-              <p className="text-sm">
+              <p className="text-sm text-gray-700 dark:text-gray-200">
                 Correct answer: <strong>{item.correct_answer}</strong>
               </p>
               {item.explanation && (

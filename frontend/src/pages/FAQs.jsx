@@ -14,6 +14,12 @@ import { useAuth } from "../context/AuthContext";
 
 const fallbackFaqs = [
   {
+    id: "e-hostel-registration",
+    category: "hostel",
+    question: "How do I register for an E-hostel?",
+    answer: "Use Bayero University's official student E-hostel registration portal to view and complete hostel registration.",
+  },
+  {
     id: "registration",
     category: "registration",
     question: "How do I register as a student?",
@@ -49,7 +55,12 @@ function FAQs() {
         return response.json();
       })
       .then((data) => {
-        if (data?.faqs?.length) setFaqs(data.faqs);
+        if (data?.faqs?.length) {
+          setFaqs([
+            ...data.faqs.filter((faq) => faq.id !== "e-hostel-registration"),
+            fallbackFaqs[0],
+          ]);
+        }
         setLoadError("");
       })
       .catch((error) => setLoadError(error.message));
@@ -216,6 +227,17 @@ function FAQs() {
                     <div className="whitespace-pre-wrap border-t border-blue-50 pt-3 text-sm leading-relaxed text-slate-600 dark:border-slate-700 dark:text-slate-300">
                       {faq.answer}
                     </div>
+
+                    {faq.id === "e-hostel-registration" && (
+                      <a
+                        href="https://www.mybuk2.buk.edu.ng/eHostel/student"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+                      >
+                        Open E-hostel registration
+                      </a>
+                    )}
 
                     {faq.related_location_id && (
                       <Link
