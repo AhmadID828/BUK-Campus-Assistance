@@ -37,7 +37,7 @@ export default function WelcomePage() {
     <main className="min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-indigo-100 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 dark:text-slate-100">
       <header className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-y-3 px-5 py-5 sm:px-8">
         <Link to="/" className="flex items-center gap-3" aria-label="BUK Campus Assistant System home">
-          <img src="/BUk%20logo%202.webp" alt="" className="h-11 w-11 rounded-2xl bg-white p-0.5 object-contain shadow-lg shadow-blue-200" />
+          <img src="/BUk%20logo%202.webp" alt="" className="h-11 w-11 rounded-2xl bg-white/70 p-0.5 object-contain opacity-90 shadow-md shadow-blue-200/60 transition-opacity hover:opacity-100" />
           <span className="font-bold tracking-tight">BUK Campus Assistant System</span>
         </Link>
         <nav className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">

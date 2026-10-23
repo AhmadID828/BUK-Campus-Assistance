@@ -1,27 +1,83 @@
-import { Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../context/ThemeContext";
 
 export default function ThemeSwitcher() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
   const isDark = resolvedTheme === "dark";
   const ThemeIcon = isDark ? Sun : Moon;
-  const nextTheme = isDark ? "light" : "dark";
-  const nextThemeLabel = isDark ? "light" : "dark";
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!menuRef.current?.contains(event.target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
 
   return (
-    <button
-      type="button"
-      aria-label={`Switch to ${nextThemeLabel} mode`}
-      title={`Switch to ${nextThemeLabel} mode`}
-      onClick={() => setTheme(nextTheme)}
-      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/90 text-slate-600 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-slate-800 dark:hover:text-blue-300 dark:focus-visible:ring-offset-slate-900"
-    >
-      <ThemeIcon
-        aria-hidden="true"
-        size={18}
-        strokeWidth={2}
-        className="text-blue-600 dark:text-blue-400"
-      />
-    </button>
+    <div ref={menuRef} className="relative">
+      {isOpen && (
+        <div
+          id="theme-menu"
+          role="group"
+          aria-label="Choose appearance"
+          className="absolute bottom-full right-0 mb-2 w-40 overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 p-1 shadow-lg backdrop-blur-md dark:border-slate-700/80 dark:bg-slate-900/90"
+        >
+          {[
+            { value: "light", label: "Light", Icon: Sun },
+            { value: "dark", label: "Dark", Icon: Moon },
+            { value: "system", label: "System", Icon: Monitor },
+          ].map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={theme === value}
+              onClick={() => {
+                setTheme(value);
+                setIsOpen(false);
+              }}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${
+                theme === value
+                  ? "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                  : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+              }`}
+            >
+              <Icon size={16} aria-hidden="true" />
+              {label}
+              {theme === value && <span className="sr-only">selected</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        aria-label={`Choose appearance. Current setting: ${theme}.`}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? "theme-menu" : undefined}
+        title={`Appearance: ${theme}`}
+        onClick={() => setIsOpen((open) => !open)}
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/70 bg-white/65 text-slate-600 shadow-sm backdrop-blur-md transition-colors hover:border-blue-200/80 hover:bg-blue-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700/70 dark:bg-slate-900/65 dark:text-slate-300 dark:hover:border-blue-800/80 dark:hover:bg-slate-800/70 dark:focus-visible:ring-offset-slate-900"
+      >
+        <ThemeIcon
+          aria-hidden="true"
+          size={18}
+          strokeWidth={2}
+          className="text-blue-600 dark:text-blue-400"
+        />
+      </button>
+    </div>
   );
 }

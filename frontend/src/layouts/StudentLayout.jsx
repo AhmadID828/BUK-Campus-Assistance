@@ -67,7 +67,7 @@ const StudentLayout = () => {
       <aside className="w-64 bg-white dark:bg-gray-800 border-r border-blue-100 dark:border-gray-700 hidden md:flex flex-col">
         <div className="p-5 border-b border-blue-100 dark:border-gray-700">
           <Link to="/" className="flex w-fit items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label="BUK Campus Assistant System home">
-            <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-11 w-11 rounded-xl bg-white object-contain p-0.5 shadow-sm ring-2 ring-blue-100" />
+            <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-11 w-11 rounded-xl bg-white/70 object-contain p-0.5 opacity-90 shadow-sm ring-1 ring-blue-100/80 transition-opacity hover:opacity-100" />
             <div>
               <h1 className="text-lg font-bold text-blue-700">BUK Campus</h1>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Student Portal</p>
@@ -131,7 +131,7 @@ const StudentLayout = () => {
           <aside className="absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col bg-white text-slate-800 shadow-2xl dark:bg-gray-800 dark:text-white">
             <div className="flex items-start justify-between border-b border-blue-100 p-5 dark:border-gray-700">
               <Link to="/" onClick={() => setMobileNavOpen(false)} className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label="BUK Campus Assistant System home">
-                  <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-10 w-10 rounded-lg bg-white object-contain p-0.5 ring-2 ring-blue-100" />
+                  <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-10 w-10 rounded-lg bg-white/70 object-contain p-0.5 opacity-90 ring-1 ring-blue-100/80 transition-opacity hover:opacity-100" />
                   <div>
                     <h1 className="text-lg font-bold text-blue-700 dark:text-blue-300">
                       BUK Campus Assistant
@@ -218,7 +218,7 @@ const StudentLayout = () => {
             <Menu size={20} />
           </button>
           <Link to="/" aria-label="BUK Campus Assistant System home" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-9 w-9 rounded-lg bg-white object-contain p-0.5 ring-2 ring-blue-100" />
+            <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-9 w-9 rounded-lg bg-white/70 object-contain p-0.5 opacity-90 ring-1 ring-blue-100/80 transition-opacity hover:opacity-100" />
           </Link>
           <div className="min-w-0">
             <h2 className="truncate font-semibold text-slate-900 dark:text-white">

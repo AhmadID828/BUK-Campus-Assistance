@@ -66,7 +66,7 @@ const Login = () => {
             <img
               src="/BUk%20logo%202.webp"
               alt="Bayero University Kano logo"
-              className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white p-1 object-contain shadow-lg"
+              className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-white/70 p-1 object-contain opacity-90 shadow-md transition-opacity hover:opacity-100"
             />
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
               BUK Campus Assistant System
