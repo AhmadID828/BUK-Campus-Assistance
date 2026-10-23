@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import PendingApprovalBanner from "../components/PendingApprovalBanner";
 import Footer from "../components/Footer";
+import ConfirmDialog from "../components/ConfirmDialog";
 import {
   LayoutDashboard,
   BookOpen,
@@ -23,6 +24,7 @@ const StudentLayout = () => {
   const { user, logout, isApproved } = useAuth();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -62,6 +64,7 @@ const StudentLayout = () => {
   const firstName = user?.full_name?.trim().split(/\s+/)[0];
 
   return (
+    <>
     <div className="flex h-dvh min-h-0 overflow-hidden bg-sky-50 dark:bg-gray-900">
       {/* Sidebar */}
       <aside className="flex min-h-0 w-64 flex-col border-r border-blue-100 bg-white dark:border-gray-700 dark:bg-gray-800 hidden md:flex">
@@ -111,7 +114,7 @@ const StudentLayout = () => {
 
         <div className="p-4 border-t border-blue-100 dark:border-gray-700">
           <button
-            onClick={logout}
+            onClick={() => setConfirmLogout(true)}
             className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
           >
             <LogOut className="w-5 h-5" />
@@ -192,7 +195,7 @@ const StudentLayout = () => {
                 Student
               </p>
               <button
-                onClick={logout}
+                onClick={() => setConfirmLogout(true)}
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20"
               >
                 <LogOut className="h-5 w-5" />
@@ -248,6 +251,15 @@ const StudentLayout = () => {
       </div>
 
     </div>
+    <ConfirmDialog
+      open={confirmLogout}
+      title="Are you sure you want to log out?"
+      message="You'll need to sign in again to continue using your account."
+      confirmLabel="Log out"
+      onCancel={() => setConfirmLogout(false)}
+      onConfirm={logout}
+    />
+    </>
   );
 };
 

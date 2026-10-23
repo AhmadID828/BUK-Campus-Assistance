@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Footer from "../components/Footer";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { CHIEF_ADMIN_EMAIL } from "../config";
 
 import {
@@ -23,6 +24,7 @@ const AdminLayout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const menuItems = [
     { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
@@ -63,6 +65,7 @@ const AdminLayout = () => {
     });
 
   return (
+    <>
     <div className="flex min-h-screen min-w-0 bg-sky-50 dark:bg-gray-900">
       {/* Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col bg-sky-950 text-white md:flex">
@@ -86,7 +89,7 @@ const AdminLayout = () => {
             <p className="text-xs text-sky-200">Administrator</p>
           </div>
           <button
-            onClick={logout}
+            onClick={() => setConfirmLogout(true)}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-red-300 transition hover:bg-red-900/30"
           >
             <LogOut className="w-5 h-5" />
@@ -128,7 +131,7 @@ const AdminLayout = () => {
               <p className="truncate px-3 text-sm font-medium">{user?.full_name}</p>
               <p className="mb-3 px-3 text-xs text-sky-200">Administrator</p>
               <button
-                onClick={logout}
+                onClick={() => setConfirmLogout(true)}
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-red-300 transition hover:bg-red-900/30"
               >
                 <LogOut className="h-5 w-5" />
@@ -167,6 +170,15 @@ const AdminLayout = () => {
         <Footer />
       </div>
     </div>
+    <ConfirmDialog
+      open={confirmLogout}
+      title="Are you sure you want to log out?"
+      message="You'll need to sign in again to continue using the admin panel."
+      confirmLabel="Log out"
+      onCancel={() => setConfirmLogout(false)}
+      onConfirm={logout}
+    />
+    </>
   );
 };
 

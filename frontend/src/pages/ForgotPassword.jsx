@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { API_BASE_URL } from "../config";
 
 export default function ForgotPassword() {
@@ -35,7 +35,20 @@ export default function ForgotPassword() {
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-blue-100 bg-white p-8 shadow-xl dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-6 text-center">
-            <BookOpen className="mx-auto mb-3 text-blue-600" size={36} />
+            <Link
+              to="/"
+              className="mx-auto mb-5 flex w-fit flex-col items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-label="BUK Campus Assistant System home"
+            >
+              <img
+                src="/BUk%20logo%202.webp"
+                alt="Bayero University Kano logo"
+                className="h-14 w-14 rounded-xl bg-white/70 p-1 object-contain opacity-90 shadow-md transition-opacity hover:opacity-100"
+              />
+              <span className="mt-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+                BUK Campus Assistant System
+              </span>
+            </Link>
             <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Forgot password?</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Enter your account email to receive a reset link.</p>
           </div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { API_BASE_URL } from "../config";
-import { Loader2, MapPin } from "lucide-react";
+import { CheckCircle, Eye, EyeOff, Loader2, MapPin, XCircle } from "lucide-react";
 import {
   exceedsPasswordByteLimit,
   getPasswordRequirements,
@@ -10,6 +10,38 @@ import {
 import { faculties, facultyDepartments } from "../data/bukFaculties";
 
 const OTHER_DEPARTMENT = "__other_department__";
+const inputClasses =
+  "w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400";
+
+function getFieldErrors(form) {
+  const errors = {};
+  if (!form.full_name.trim()) errors.full_name = "Enter your full name.";
+  if (!form.email.trim()) errors.email = "Enter your email address.";
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    errors.email = "Enter a valid email address.";
+  }
+  if (!form.reg_number.trim()) errors.reg_number = "Enter your registration number.";
+  if (!form.faculty) errors.faculty = "Select your faculty.";
+  if (!form.department) errors.department = "Select your department.";
+  if (
+    form.department === OTHER_DEPARTMENT &&
+    !form.otherDepartment.trim()
+  ) {
+    errors.otherDepartment = "Enter your department name.";
+  }
+  if (!form.level) errors.level = "Select your level.";
+  if (!form.password) errors.password = "Create a password.";
+  else if (!isStrongPassword(form.password)) {
+    errors.password = "Meet all password requirements.";
+  } else if (exceedsPasswordByteLimit(form.password)) {
+    errors.password = "Choose a shorter password.";
+  }
+  if (!form.confirmPassword) errors.confirmPassword = "Confirm your password.";
+  else if (form.password !== form.confirmPassword) {
+    errors.confirmPassword = "Passwords do not match.";
+  }
+  return errors;
+}
 
 function Signup() {
   const [form, setForm] = useState({
@@ -25,32 +57,32 @@ function Signup() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const navigate = useNavigate();
-
+  const [submitted, setSubmitted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resultPopup, setResultPopup] = useState(null);
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setForm((current) => ({
-      ...current,
+    const updatedForm = {
+      ...form,
       [name]: value,
       ...(name === "faculty"
         ? { department: "", otherDepartment: "" }
         : {}),
-    }));
+    };
+    setForm(updatedForm);
+    if (submitted) setFieldErrors(getFieldErrors(updatedForm));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitted(true);
     setError("");
-    setSuccess("");
-
-    if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (!isStrongPassword(form.password)) {
-      setError("Choose a password that meets all the strength requirements.");
+    const nextFieldErrors = getFieldErrors(form);
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setError("You're almost there—please check the fields marked below.");
       return;
     }
 
@@ -58,15 +90,11 @@ function Signup() {
       form.department === OTHER_DEPARTMENT
         ? form.otherDepartment.trim()
         : form.department;
-    if (!department) {
-      setError("Select or enter your department.");
-      return;
-    }
 
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`,  {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -81,24 +109,46 @@ function Signup() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        setError(data.detail || "Registration failed");
+        const data = await response.json().catch(() => ({}));
+        const message =
+          typeof data.detail === "string"
+            ? data.detail
+            : "Registration failed. Check your details and try again.";
+        setError(message);
+        setResultPopup({
+          type: "error",
+          title: "Account creation failed",
+          message,
+        });
         return;
       }
 
-      setSuccess("Account created successfully! Waiting for admin approval. Redirecting to login...");
-      setTimeout(() => navigate("/login"), 2500);
+      setResultPopup({
+        type: "success",
+        title: "Registration successful!",
+        message: "Your account has been created and is waiting for administrator approval. You can sign in once it has been reviewed.",
+      });
     } catch (err) {
-      setError(
-        err instanceof TypeError
-          ? "Cannot reach the server. Check your internet connection, frontend API URL, and backend CORS settings."
-          : "An error occurred. Please try again."
-      );
-      console.error(err);
+      const message = err instanceof TypeError
+        ? "Cannot reach the server. Check your internet connection and try again."
+        : "An error occurred while creating your account. Please try again.";
+      setError(message);
+      setResultPopup({
+        type: "error",
+        title: "Account creation failed",
+        message,
+      });
     } finally {
       setLoading(false);
     }
   };
+
+  const fieldClass = (name) =>
+    `${inputClasses} ${
+      fieldErrors[name]
+        ? "border-red-500 focus:ring-red-500 dark:border-red-400"
+        : ""
+    }`;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-8 pb-28 dark:from-gray-900 dark:to-gray-800">
@@ -118,19 +168,13 @@ function Signup() {
             Create Account
           </h1>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
-              <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+          {error && !resultPopup && (
+            <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30">
+              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
             </div>
           )}
 
-          {success && (
-            <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg">
-              <p className="text-green-700 dark:text-green-400 text-sm">{success}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Full Name
@@ -141,9 +185,11 @@ function Signup() {
                 value={form.full_name}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
+                aria-invalid={Boolean(fieldErrors.full_name)}
+                className={fieldClass("full_name")}
                 placeholder="Ahmad Idris Dauda"
               />
+              {fieldErrors.full_name && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.full_name}</p>}
             </div>
 
             <div>
@@ -156,9 +202,11 @@ function Signup() {
                 value={form.email}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
+                aria-invalid={Boolean(fieldErrors.email)}
+                className={fieldClass("email")}
                 placeholder="your.email@buk.edu.ng"
               />
+              {fieldErrors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.email}</p>}
             </div>
 
             <div>
@@ -171,9 +219,11 @@ function Signup() {
                 value={form.reg_number}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
+                aria-invalid={Boolean(fieldErrors.reg_number)}
+                className={fieldClass("reg_number")}
                 placeholder="CST/20/COM/00001"
               />
+              {fieldErrors.reg_number && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.reg_number}</p>}
             </div>
 
             <div>
@@ -185,7 +235,8 @@ function Signup() {
                 value={form.faculty}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-medium text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                aria-invalid={Boolean(fieldErrors.faculty)}
+                className={`${fieldClass("faculty")} bg-white dark:bg-gray-700`}
               >
                 <option value="">Select your faculty</option>
                 {faculties.map((faculty) => (
@@ -194,6 +245,7 @@ function Signup() {
                   </option>
                 ))}
               </select>
+              {fieldErrors.faculty && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.faculty}</p>}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -207,7 +259,8 @@ function Signup() {
                   onChange={handleChange}
                   required
                   disabled={!form.faculty}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-medium text-gray-900 focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  aria-invalid={Boolean(fieldErrors.department)}
+                  className={`${fieldClass("department")} bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-700`}
                 >
                   <option value="">
                     {!form.faculty
@@ -223,17 +276,22 @@ function Signup() {
                   ))}
                   <option value={OTHER_DEPARTMENT}>Other / not listed</option>
                 </select>
+                {fieldErrors.department && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.department}</p>}
                 {form.department === OTHER_DEPARTMENT && (
-                  <input
-                    type="text"
-                    name="otherDepartment"
-                    value={form.otherDepartment}
-                    onChange={handleChange}
-                    required
-                    maxLength={120}
-                    className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                    placeholder="Enter your department name"
-                  />
+                  <>
+                    <input
+                      type="text"
+                      name="otherDepartment"
+                      value={form.otherDepartment}
+                      onChange={handleChange}
+                      required
+                      maxLength={120}
+                      aria-invalid={Boolean(fieldErrors.otherDepartment)}
+                      className={`mt-2 ${fieldClass("otherDepartment")}`}
+                      placeholder="Enter your department name"
+                    />
+                    {fieldErrors.otherDepartment && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.otherDepartment}</p>}
+                  </>
                 )}
               </div>
 
@@ -246,7 +304,8 @@ function Signup() {
                   value={form.level}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  aria-invalid={Boolean(fieldErrors.level)}
+                  className={`${fieldClass("level")} bg-white dark:bg-gray-700`}
                 >
                   <option value="">Select</option>
                   <option value="100">100</option>
@@ -256,6 +315,7 @@ function Signup() {
                   <option value="500">500</option>
                   <option value="600">600</option>
                 </select>
+                {fieldErrors.level && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.level}</p>}
               </div>
             </div>
 
@@ -263,16 +323,29 @@ function Signup() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Password
               </label>
-              <input
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                required
-                autoComplete="new-password"
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Create a strong password"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  className={`${fieldClass("password")} pr-12`}
+                  placeholder="Create a strong password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-2 flex min-h-11 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-300 dark:hover:bg-slate-600"
+                >
+                  {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                </button>
+              </div>
+              {fieldErrors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.password}</p>}
               <ul className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" aria-live="polite">
                 {getPasswordRequirements(form.password).map((requirement) => (
                   <li key={requirement.label} className={requirement.valid ? "text-green-700 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}>
@@ -291,21 +364,34 @@ function Signup() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Confirm Password
               </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={form.confirmPassword}
-                onChange={handleChange}
-                required
-                autoComplete="new-password"
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 font-medium text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Repeat password"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                  className={`${fieldClass("confirmPassword")} pr-12`}
+                  placeholder="Repeat password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
+                  aria-pressed={showConfirmPassword}
+                  className="absolute inset-y-0 right-2 flex min-h-11 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-slate-300 dark:hover:bg-slate-600"
+                >
+                  {showConfirmPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                </button>
+              </div>
+              {fieldErrors.confirmPassword && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.confirmPassword}</p>}
             </div>
 
             <button
               type="submit"
-              disabled={loading || !isStrongPassword(form.password) || form.password !== form.confirmPassword}
+              disabled={loading}
               className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-semibold text-white shadow-md transition hover:bg-blue-700 disabled:opacity-70"
             >
               {loading ? (
@@ -335,6 +421,51 @@ function Signup() {
           </Link>
         </div>
       </div>
+      {resultPopup && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setResultPopup(null);
+          }}
+        >
+          <section
+            role={resultPopup.type === "success" ? "dialog" : "alertdialog"}
+            aria-modal="true"
+            aria-labelledby="signup-result-title"
+            aria-describedby="signup-result-message"
+            className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl dark:bg-slate-800"
+          >
+            {resultPopup.type === "success" ? (
+              <CheckCircle className="mx-auto mb-3 text-green-600 dark:text-green-400" size={42} />
+            ) : (
+              <XCircle className="mx-auto mb-3 text-red-600 dark:text-red-400" size={42} />
+            )}
+            <h2 id="signup-result-title" className="text-lg font-bold text-slate-900 dark:text-white">
+              {resultPopup.title}
+            </h2>
+            <p id="signup-result-message" className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+              {resultPopup.message}
+            </p>
+            {resultPopup.type === "success" ? (
+              <Link
+                to="/login"
+                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-4 font-semibold text-white hover:bg-blue-700"
+              >
+                Go to sign in
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setResultPopup(null)}
+                className="mt-5 min-h-11 w-full rounded-xl bg-slate-100 px-4 font-semibold text-slate-800 hover:bg-slate-200 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600"
+              >
+                Close and try again
+              </button>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }
