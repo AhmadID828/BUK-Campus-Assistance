@@ -9,7 +9,9 @@ and campus information together in one responsive web app.
 - Summarize study materials, build a study plan, and generate quizzes.
 - Register courses, upload materials under course codes, and schedule topics
   against optional exam dates.
-- Find campus places on the map and browse frequently asked questions.
+- Find campus places on the map and browse frequently asked questions. Walking
+  directions require a usable location fix; if GPS is too imprecise, choose your
+  starting point on the map instead.
 - Manage student approvals and campus events with an administrator account.
 
 ## Technology
@@ -42,6 +44,14 @@ You will need Python, Node.js, PostgreSQL, and a configured AI provider.
 
 Open the local URL printed by Vite. The API health check is available at
 `/health`. Uploaded materials are limited to 2 MB per file.
+
+### Test location on a phone
+
+For GPS testing, open the deployed frontend over HTTPS on the phone and allow
+precise location access. The frontend must be configured with the deployed
+backend URL in `VITE_API_URL`. Local development over an ordinary LAN address
+does not provide HTTPS geolocation on most phones; when testing locally, use
+**Choose start on map** to set the route origin instead.
 
 Use the floating appearance button to choose Light, Dark, or System. The
 preference is saved in the browser; System follows the device's current

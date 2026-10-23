@@ -153,11 +153,11 @@ export default function Chat() {
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl min-w-0 flex-col px-2 pb-[env(safe-area-inset-bottom)] pt-2 sm:px-4 sm:py-4">
       {/* Header */}
-      <div className="mb-2 shrink-0 space-y-2 border-b border-blue-100 pb-2 sm:mb-4 sm:space-y-3 sm:border-0 sm:pb-0">
+      <div className="mb-2 shrink-0 space-y-2 border-b border-blue-100 pb-2 dark:border-slate-700 sm:mb-4 sm:space-y-3 sm:border-0 sm:pb-0">
         <div className="flex min-w-0 items-center justify-between gap-1.5">
           <div className="min-w-0">
-            <h1 className="text-base font-bold text-slate-800 sm:text-xl">AI Assistant</h1>
-            <p className="hidden truncate text-xs text-slate-500 sm:block sm:text-sm">
+            <h1 className="text-base font-bold text-slate-800 dark:text-white sm:text-xl">AI Assistant</h1>
+            <p className="hidden truncate text-xs text-slate-500 dark:text-slate-400 sm:block sm:text-sm">
               Academic help + Campus information
             </p>
           </div>
@@ -166,7 +166,7 @@ export default function Chat() {
             <button
               type="button"
               onClick={() => setShowRecent(true)}
-              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-50 px-2.5 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 sm:px-3"
+              className="flex min-h-10 items-center gap-1.5 rounded-xl bg-blue-50 px-2.5 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/70 sm:px-3"
               aria-label="Open recent conversations"
             >
               <MessageSquare size={16} />
@@ -183,7 +183,7 @@ export default function Chat() {
             <button
               type="button"
               onClick={() => setShowSettings(true)}
-              className="flex min-h-10 w-10 items-center justify-center rounded-xl border border-blue-100 bg-white text-slate-700 hover:bg-blue-50 sm:hidden"
+              className="flex min-h-10 w-10 items-center justify-center rounded-xl border border-blue-100 bg-white text-slate-700 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:hidden"
               aria-label="Chat settings"
             >
               <Settings2 size={18} />
@@ -191,7 +191,7 @@ export default function Chat() {
           </div>
         </div>
 
-        <div className="flex w-full rounded-xl bg-blue-50 p-1 sm:w-fit">
+        <div className="flex w-full rounded-xl bg-blue-50 p-1 dark:bg-slate-800 sm:w-fit">
           {[
             { id: "mixed", label: "All", icon: null },
             { id: "academic", label: "Study", icon: <BookOpen size={14} /> },
@@ -203,7 +203,7 @@ export default function Chat() {
               className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition sm:flex-initial ${
                 mode === m.id
                   ? "bg-blue-600 text-white shadow"
-                  : "text-slate-600 hover:bg-blue-100"
+                  : "text-slate-600 hover:bg-blue-100 dark:text-slate-300 dark:hover:bg-slate-700"
               }`}
             >
               {m.icon}
@@ -221,7 +221,7 @@ export default function Chat() {
               setModel(nextProvider === "groq" ? "openai/gpt-oss-20b" : "gemma2:2b");
             }}
             disabled={loading}
-            className="min-h-10 rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700"
+            className="min-h-10 rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             aria-label="AI provider"
           >
             <option value="ollama">Ollama</option>
@@ -231,7 +231,7 @@ export default function Chat() {
             value={model}
             onChange={(e) => setModel(e.target.value)}
             disabled={loading}
-            className="min-h-10 rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700"
+            className="min-h-10 rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             aria-label="AI model"
           >
             {provider === "groq" ? (
@@ -254,10 +254,10 @@ export default function Chat() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="recent-conversations-title"
-            className="max-h-[80dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-blue-100 bg-white p-4 shadow-xl"
+            className="max-h-[80dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-blue-100 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-900"
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 id="recent-conversations-title" className="text-sm font-semibold text-slate-800">
+              <h2 id="recent-conversations-title" className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                 Recent conversations
               </h2>
               <div className="flex items-center gap-3">
@@ -268,14 +268,14 @@ export default function Chat() {
                   type="button"
                   onClick={() => setShowRecent(false)}
                   aria-label="Close recent conversations"
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
                   <X size={18} />
                 </button>
               </div>
             </div>
             {sessions.length === 0 ? (
-              <p className="py-3 text-sm text-slate-500">No saved conversations yet.</p>
+              <p className="py-3 text-sm text-slate-500 dark:text-slate-400">No saved conversations yet.</p>
             ) : (
               <div className="grid max-h-[60dvh] gap-2 overflow-y-auto sm:max-h-40 sm:grid-cols-2">
                 {sessions.map((session) => (
@@ -283,11 +283,11 @@ export default function Chat() {
                     key={session.id}
                     type="button"
                     onClick={() => openSession(session.id)}
-                    className={`min-h-14 rounded-lg border px-3 py-2 text-left hover:bg-blue-50 ${
-                      session.id === sessionId ? "border-blue-500 bg-blue-50" : "border-slate-200"
+                    className={`min-h-14 rounded-lg border px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-slate-800 ${
+                      session.id === sessionId ? "border-blue-500 bg-blue-50 dark:bg-blue-950/50" : "border-slate-200 dark:border-slate-700"
                     }`}
                   >
-                    <span className="block truncate text-sm font-medium text-slate-700">{session.title}</span>
+                    <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{session.title}</span>
                     <span className="text-xs capitalize text-slate-400">{session.session_type} · {session.message_count} messages</span>
                   </button>
                 ))}
@@ -314,15 +314,15 @@ export default function Chat() {
               className={`min-w-0 max-w-[calc(100%-2.5rem)] break-words [overflow-wrap:anywhere] rounded-2xl px-3 py-2.5 text-sm leading-relaxed sm:max-w-[80%] sm:px-4 sm:py-3 ${
                 msg.role === "user"
                   ? "bg-blue-600 text-white rounded-br-md"
-                  : "bg-white border border-blue-100 text-slate-700 rounded-bl-md shadow-sm"
+                  : "border border-blue-100 bg-white text-slate-700 rounded-bl-md shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               }`}
             >
               <p className="whitespace-pre-wrap">{msg.content}</p>
 
               {/* Sources */}
               {msg.sources && msg.sources.length > 0 && (
-                <details className="group mt-3 border-t border-blue-100 pt-2 text-xs text-slate-600">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-medium text-blue-700 hover:text-blue-800">
+                <details className="group mt-3 border-t border-blue-100 pt-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
                     <span>View retrieved study material ({msg.sources.length})</span>
                     <ChevronDown
                       size={15}
@@ -333,12 +333,12 @@ export default function Chat() {
                   <ul className="mt-2 space-y-2">
                     {msg.sources.map((source, sourceIndex) => (
                       <li key={`${source.title || source.name || source.type}-${sourceIndex}`}>
-                        <p className="font-medium text-slate-700">
+                        <p className="font-medium text-slate-700 dark:text-slate-200">
                           {source.title || source.filename || source.name || "Study material"}
                           {source.subject ? ` · ${source.subject}` : ""}
                         </p>
                         {source.excerpt && (
-                          <p className="mt-0.5 text-slate-500">{source.excerpt}</p>
+                          <p className="mt-0.5 text-slate-500 dark:text-slate-400">{source.excerpt}</p>
                         )}
                       </li>
                     ))}
@@ -348,7 +348,7 @@ export default function Chat() {
             </div>
 
             {msg.role === "user" && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 sm:h-9 sm:w-9">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200 sm:h-9 sm:w-9">
                 <User size={16} className="sm:h-[18px] sm:w-[18px]" />
               </div>
             )}
@@ -363,10 +363,10 @@ export default function Chat() {
             <div
               role="status"
               aria-live="polite"
-              className="flex min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 py-2.5 shadow-sm sm:gap-3 sm:px-4 sm:py-3"
+              className="flex min-w-0 items-center gap-2 rounded-2xl border border-blue-100 bg-white px-3 py-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:gap-3 sm:px-4 sm:py-3"
             >
               <Loader2 className="animate-spin text-blue-600" size={18} />
-              <span className="text-sm text-slate-600">AI is thinking...</span>
+              <span className="text-sm text-slate-600 dark:text-slate-300">AI is thinking...</span>
             </div>
           </div>
         )}
@@ -380,7 +380,7 @@ export default function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask your study or campus question..."
-          className="min-h-12 w-full rounded-2xl border border-blue-200 py-3 pl-3 pr-14 text-base outline-none shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:pl-5 sm:py-4"
+          className="min-h-12 w-full rounded-2xl border border-blue-200 bg-white py-3 pl-3 pr-14 text-base text-slate-900 outline-none shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:ring-blue-900 sm:pl-5 sm:py-4"
         />
         {loading ? (
           <button
@@ -416,23 +416,23 @@ export default function Chat() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="chat-settings-title"
-            className="max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl"
+            className="max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl dark:bg-slate-900"
           >
             <div className="mb-5 flex items-center justify-between">
-              <h2 id="chat-settings-title" className="text-lg font-semibold text-slate-900">
+              <h2 id="chat-settings-title" className="text-lg font-semibold text-slate-900 dark:text-white">
                 Chat settings
               </h2>
               <button
                 type="button"
                 onClick={() => setShowSettings(false)}
                 aria-label="Close chat settings"
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 <X size={20} />
               </button>
             </div>
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                 AI provider
                 <select
                   value={provider}
@@ -442,19 +442,19 @@ export default function Chat() {
                     setModel(nextProvider === "groq" ? "openai/gpt-oss-20b" : "gemma2:2b");
                   }}
                   disabled={loading}
-                  className="mt-1.5 min-h-12 w-full rounded-xl border border-blue-100 bg-white px-3 text-base"
+                  className="mt-1.5 min-h-12 w-full rounded-xl border border-blue-100 bg-white px-3 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="ollama">Ollama</option>
                   <option value="groq">Groq</option>
                 </select>
               </label>
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                 AI model
                 <select
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   disabled={loading}
-                  className="mt-1.5 min-h-12 w-full rounded-xl border border-blue-100 bg-white px-3 text-base"
+                  className="mt-1.5 min-h-12 w-full rounded-xl border border-blue-100 bg-white px-3 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   {provider === "groq" ? (
                     <option value="openai/gpt-oss-20b">GPT OSS 20B</option>

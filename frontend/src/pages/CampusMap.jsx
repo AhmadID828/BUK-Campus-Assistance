@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
-import { LocateFixed, Navigation, X } from "lucide-react";
+import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { LocateFixed, MapPin, Navigation, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -9,6 +9,107 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const BUK_CENTER = [11.9758, 8.4203];
 const DEFAULT_ZOOM = 16;
+const TARGET_LOCATION_ACCURACY = 20;
+const MAX_LOCATION_ACCURACY = 50;
+const LOCATION_TIMEOUT_MS = 20000;
+
+async function getLocationErrorMessage(error) {
+  if (!window.isSecureContext) {
+    return "Location requires a secure connection. Open this map over HTTPS (or localhost) and try again.";
+  }
+
+  if (error?.code === 1) {
+    let permissionState;
+    try {
+      const permission = await navigator.permissions?.query({ name: "geolocation" });
+      permissionState = permission?.state;
+    } catch (permissionError) {
+      console.warn("Unable to inspect the browser's location permission state.", permissionError);
+    }
+
+    if (permissionState === "granted") {
+      return "Your browser reports location access as allowed, but the device or browser could not provide it. Check your operating system's location services and this site's permission for the current address, then try again.";
+    }
+    if (permissionState === "prompt") {
+      return "Allow location access in the browser prompt for this exact site, then request directions again.";
+    }
+    return "The browser denied location access for this site. Check the permission for the current site address, allow location, and reload the page. If it is already allowed, check device location services and try again.";
+  }
+
+  if (error?.code === 2) {
+    return "Your device could not determine a location. Turn on device location services, move somewhere with a clearer GPS signal, and try again.";
+  }
+  if (error?.code === 3) {
+    return "The location request timed out. Check device location services and try again somewhere with a clearer GPS signal.";
+  }
+
+  return error?.message || "Could not determine your location. Check that location services are enabled and try again.";
+}
+
+function getAccuratePosition() {
+  return new Promise((resolve, reject) => {
+    if (!window.isSecureContext) {
+      reject(new Error("Location requires a secure connection. Open this map over HTTPS (or localhost) and try again."));
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported by your browser."));
+      return;
+    }
+
+    let watchId;
+    let bestPosition = null;
+    let settled = false;
+
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+      callback(value);
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      if (bestPosition) {
+        finish(resolve, bestPosition);
+        return;
+      }
+      finish(
+        reject,
+        new Error("Could not determine your location. Check location services and try again."),
+      );
+    }, LOCATION_TIMEOUT_MS);
+
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        if (
+          !Number.isFinite(position.coords.latitude) ||
+          !Number.isFinite(position.coords.longitude) ||
+          !Number.isFinite(position.coords.accuracy)
+        ) {
+          return;
+        }
+        if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) {
+          bestPosition = position;
+        }
+        if (position.coords.accuracy <= TARGET_LOCATION_ACCURACY) {
+          finish(resolve, position);
+        }
+      },
+      (error) => {
+        if (error.code === 1) finish(reject, error);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: LOCATION_TIMEOUT_MS },
+    );
+  });
+}
+
+function formatAccuracy(accuracy) {
+  return accuracy >= 1000
+    ? `±${(accuracy / 1000).toFixed(accuracy >= 10000 ? 0 : 1)} km`
+    : `±${Math.round(accuracy)} m`;
+}
 
 // Restore Leaflet's default marker assets for Vite builds.
 delete L.Icon.Default.prototype._getIconUrl;
@@ -38,6 +139,16 @@ function UserLocationView({ position, following }) {
   useEffect(() => {
     if (position && following) map.panTo(position, { animate: true, duration: 0.4 });
   }, [position, following, map]);
+
+  return null;
+}
+
+function MapOriginPicker({ enabled, onPick }) {
+  useMapEvents({
+    click(event) {
+      if (enabled) onPick([event.latlng.lat, event.latlng.lng]);
+    },
+  });
 
   return null;
 }
@@ -197,6 +308,9 @@ function CampusMap({
   const [destination, setDestination] = useState(null);
   const [routeOrigin, setRouteOrigin] = useState(null);
   const [userPosition, setUserPosition] = useState(null);
+  const [userAccuracy, setUserAccuracy] = useState(null);
+  const [manualOrigin, setManualOrigin] = useState(false);
+  const [choosingOrigin, setChoosingOrigin] = useState(false);
   const [message, setMessage] = useState("");
   const [routeDetails, setRouteDetails] = useState(null);
   const [destinationName, setDestinationName] = useState("");
@@ -217,6 +331,8 @@ function CampusMap({
     setRouteDetails(null);
     setRouteLoading(false);
     setActiveStep(-1);
+    setManualOrigin(false);
+    setChoosingOrigin(false);
     setMessage("");
   }, [selectedLocation?.id, stopFollowing]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -236,55 +352,37 @@ function CampusMap({
     setActiveStep(-1);
     setDestinationName(location.name);
     setDestination(target);
+    setUserPosition(null);
+    setUserAccuracy(null);
+    setManualOrigin(false);
+    setChoosingOrigin(false);
 
-    if (userPosition) {
-      setRouteOrigin(userPosition);
-      setMessage(`Calculating route to ${location.name}...`);
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      setRouteLoading(false);
-      setMessage("Geolocation is not supported by your browser.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
+    getAccuratePosition().then(
       (position) => {
         const origin = [position.coords.latitude, position.coords.longitude];
         setUserPosition(origin);
+        setUserAccuracy(position.coords.accuracy);
         setRouteOrigin(origin);
-        setMessage(`Calculating route to ${location.name}...`);
-      },
-      (error) => {
-        setRouteLoading(false);
         setMessage(
-          error.code === error.PERMISSION_DENIED
-            ? "Location access was denied. Allow it in browser settings to get walking directions."
-            : "Could not determine your location. Check location services and try again.",
+          `Using available location (${formatAccuracy(position.coords.accuracy)} accuracy). Calculating route to ${location.name}...`,
         );
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+      async (error) => {
+        setRouteLoading(false);
+        setMessage(await getLocationErrorMessage(error));
+      },
     );
-  }, [stopFollowing, userPosition]);
+  }, [stopFollowing]);
 
   const handleLocate = () => {
-    if (!navigator.geolocation) {
-      setMessage("Geolocation is not supported by your browser.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
+    setMessage("Getting a precise GPS fix...");
+    getAccuratePosition().then(
       (position) => {
         setUserPosition([position.coords.latitude, position.coords.longitude]);
-        setMessage("Your location is shown on the map.");
+        setUserAccuracy(position.coords.accuracy);
+        setMessage(`Your location is shown on the map (accuracy ${formatAccuracy(position.coords.accuracy)}).`);
       },
-      (error) => setMessage(
-        error.code === error.PERMISSION_DENIED
-          ? "Location access was denied. Allow it in browser settings."
-          : "Could not get your location. Check that location services are enabled.",
-      ),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+      async (error) => setMessage(await getLocationErrorMessage(error)),
     );
   };
 
@@ -297,11 +395,67 @@ function CampusMap({
     setRouteLoading(false);
     setRouteDetails(route);
     setActiveStep(-1);
-    if (route) setMessage("Walking route ready. Start navigation when you are ready.");
-  }, []);
+    if (route) {
+      setMessage(
+        manualOrigin
+          ? "Walking route ready from your selected start point. Follow the steps manually."
+          : "Walking route ready. Start navigation when you are ready.",
+      );
+    }
+  }, [manualOrigin]);
+
+  const handleManualOriginPick = useCallback((origin) => {
+    stopFollowing();
+    setUserPosition(origin);
+    setUserAccuracy(null);
+    setRouteOrigin(origin);
+    setManualOrigin(true);
+    setChoosingOrigin(false);
+    setRouteDetails(null);
+    setRouteLoading(true);
+    setActiveStep(-1);
+    setMessage("Start point selected. Calculating walking directions...");
+  }, [stopFollowing]);
+
+  const handleManualOriginDrag = (event) => {
+    const { lat, lng } = event.target.getLatLng();
+    handleManualOriginPick([lat, lng]);
+    setMessage("Start point moved. Recalculating walking directions...");
+  };
+
+  const chooseManualOrigin = (location) => {
+    const target = [Number(location.latitude), Number(location.longitude)];
+    if (!target.every(Number.isFinite)) {
+      setMessage("This location does not have valid map coordinates.");
+      return;
+    }
+
+    stopFollowing();
+    setRouteOrigin(null);
+    setRouteDetails(null);
+    setRouteLoading(false);
+    setActiveStep(-1);
+    setUserPosition(null);
+    setUserAccuracy(null);
+    setManualOrigin(false);
+    setDestination(target);
+    setDestinationName(location.name);
+    setChoosingOrigin(true);
+    setMessage("Click your starting point on the map. You can drag its marker to adjust it.");
+  };
 
   const startFollowing = () => {
     if (!routeDetails?.steps.length) return;
+    if (manualOrigin) {
+      setActiveStep((step) => (step < 0 ? 0 : step));
+      setMessage("This route starts from a manually selected point. Follow the directions below.");
+      return;
+    }
+    if (userAccuracy > MAX_LOCATION_ACCURACY) {
+      setActiveStep((step) => (step < 0 ? 0 : step));
+      setMessage("Location accuracy is low. Follow the route steps manually, or select a start point on the map for a more useful route.");
+      return;
+    }
     if (!navigator.geolocation) {
       setActiveStep((step) => (step < 0 ? 0 : step));
       setMessage("Live navigation needs browser location access. You can still follow the steps manually.");
@@ -318,8 +472,10 @@ function CampusMap({
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        if (position.coords.accuracy > MAX_LOCATION_ACCURACY) return;
         const currentPosition = [position.coords.latitude, position.coords.longitude];
         setUserPosition(currentPosition);
+        setUserAccuracy(position.coords.accuracy);
 
         if (!routeDetails?.steps.length || activeStep < 0) return;
         const isFinalStep = activeStep >= routeDetails.steps.length - 1;
@@ -358,7 +514,7 @@ function CampusMap({
             : "Live location was lost. Continue using the directions manually.",
         );
       },
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, [activeStep, destination, following, routeDetails]);
@@ -389,6 +545,12 @@ function CampusMap({
     setRouteDetails(null);
     setRouteLoading(false);
     setActiveStep(-1);
+    setManualOrigin(false);
+    setChoosingOrigin(false);
+    if (manualOrigin) {
+      setUserPosition(null);
+      setUserAccuracy(null);
+    }
     setMessage("");
   };
 
@@ -404,8 +566,8 @@ function CampusMap({
             role="status"
             className={`mb-3 rounded-xl border px-4 py-3 text-sm ${
               routeLoading
-                ? "border-blue-100 bg-blue-50 text-blue-800"
-                : "border-slate-200 bg-slate-50 text-slate-700"
+                ? "border-blue-100 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-200"
+                : "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             }`}
           >
             {routeLoading && (
@@ -416,10 +578,10 @@ function CampusMap({
         )}
 
         {selectedLocation && (
-          <div className="mb-3 flex min-w-0 flex-col gap-3 rounded-xl border border-blue-100 bg-white p-3 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <div className="mb-3 flex min-w-0 flex-col gap-3 rounded-xl border border-blue-100 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
             <div className="min-w-0">
-              <p className="font-semibold text-slate-800">{selectedLocation.name}</p>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedLocation.name}</p>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
                 {selectedLocation.description || "Campus destination"}
               </p>
             </div>
@@ -435,11 +597,20 @@ function CampusMap({
               </button>
               <button
                 type="button"
+                onClick={() => chooseManualOrigin(selectedLocation)}
+                disabled={routeLoading}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-blue-300 dark:hover:bg-slate-800 sm:px-4"
+              >
+                <MapPin className="h-4 w-4" />
+                Choose start on map
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   clearRoute();
                   onClearSelection?.();
                 }}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:px-4"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 sm:px-4"
               >
                 <X className="h-4 w-4" />
                 Show all places
@@ -450,22 +621,25 @@ function CampusMap({
 
         <div className={routeDetails ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : ""}>
           {routeDetails && (
-            <div className="order-2 min-w-0 rounded-xl border border-blue-100 bg-blue-50 p-3 sm:p-4 lg:order-2 lg:col-span-1 lg:col-start-3 lg:row-start-1">
+            <div className="order-2 min-w-0 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-slate-700 dark:bg-slate-800 sm:p-4 lg:order-2 lg:col-span-1 lg:col-start-3 lg:row-start-1">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h3 className="font-semibold text-slate-800">Directions to {destinationName}</h3>
-                <p className="text-xs text-slate-500">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100">Directions to {destinationName}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Walking · {formatDistance(routeDetails.distance)} · {formatDuration(routeDetails.duration)}
+                  {manualOrigin
+                    ? " · Selected start point"
+                    : userAccuracy != null && ` · GPS ${formatAccuracy(userAccuracy)}`}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-700">
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-slate-900 dark:text-blue-300">
                   {following ? "Navigating" : activeStep < 0 ? "Ready" : `Step ${activeStep + 1}/${routeDetails.steps.length}`}
                 </span>
                 <button
                   type="button"
                   onClick={clearRoute}
-                  className="rounded-lg p-1 text-slate-500 transition hover:bg-white hover:text-slate-800"
+                  className="rounded-lg p-1 text-slate-500 transition hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
                   aria-label="Clear directions"
                   title="Clear directions"
                 >
@@ -475,14 +649,14 @@ function CampusMap({
             </div>
 
             {activeStep >= 0 && routeDetails.steps[activeStep] && (
-              <div className="mt-3 rounded-xl border border-blue-300 bg-white p-3 shadow-sm">
+              <div className="mt-3 rounded-xl border border-blue-300 bg-white p-3 shadow-sm dark:border-blue-800 dark:bg-slate-900">
                 <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
                   Current direction
                 </p>
-                <p className="mt-1 text-base font-semibold text-slate-800">
+                <p className="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100">
                   {routeDetails.steps[activeStep].instruction}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   Segment distance: {formatDistance(routeDetails.steps[activeStep].distance)}
                 </p>
               </div>
@@ -493,26 +667,27 @@ function CampusMap({
                 type="button"
                 onClick={followPreviousStep}
                 disabled={activeStep <= 0 || following}
-                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 type="button"
                 onClick={following ? stopFollowing : startFollowing}
+                disabled={manualOrigin && following}
                 className={`rounded-lg px-3 py-2 text-xs font-medium text-white transition ${
                   following
                     ? "bg-slate-600 hover:bg-slate-700"
                     : "bg-blue-600 hover:bg-blue-700"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                {following ? "Stop live navigation" : "Start live navigation"}
+                {following ? "Stop live navigation" : manualOrigin ? "Follow directions" : "Start live navigation"}
               </button>
               <button
                 type="button"
                 onClick={followNextStep}
                 disabled={activeStep >= routeDetails.steps.length - 1}
-                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {activeStep < 0 ? "Show first step" : "Next direction"}
               </button>
@@ -524,8 +699,8 @@ function CampusMap({
                   key={`${step.instruction}-${index}`}
                   className={`rounded-lg transition ${
                     activeStep === index
-                      ? "border border-blue-300 bg-blue-100 shadow-sm"
-                      : "bg-white"
+                    ? "border border-blue-300 bg-blue-100 shadow-sm dark:border-blue-700 dark:bg-blue-950/60"
+                    : "bg-white dark:bg-slate-900"
                   }`}
                 >
                   <button
@@ -534,11 +709,11 @@ function CampusMap({
                     className="flex w-full items-start gap-3 p-2.5 text-left"
                     aria-label={`Show route step ${index + 1}`}
                   >
-                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                       {index + 1}
                     </span>
-                    <span className="min-w-0 flex-1 text-sm text-slate-700">{step.instruction}</span>
-                    <span className="whitespace-nowrap text-xs font-medium text-blue-700">
+                    <span className="min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-200">{step.instruction}</span>
+                    <span className="whitespace-nowrap text-xs font-medium text-blue-700 dark:text-blue-300">
                       {formatDistance(step.distance)}
                     </span>
                   </button>
@@ -550,12 +725,28 @@ function CampusMap({
 
         <div className={`relative order-1 h-[min(52dvh,440px)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-xl sm:h-[min(65vh,600px)] ${routeDetails ? "lg:order-1 lg:col-span-2 lg:col-start-1 lg:row-start-1" : ""}`}>
           <LocateButton onLocate={handleLocate} />
+          {choosingOrigin && (
+            <div className="absolute left-2 top-2 z-[400] max-w-[calc(100%-4.5rem)] rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-md dark:bg-slate-900 dark:text-slate-200 sm:left-3 sm:top-3">
+              Click the map to choose your start point
+              <button
+                type="button"
+                onClick={() => {
+                  setChoosingOrigin(false);
+                  setMessage("");
+                }}
+                className="ml-2 font-semibold text-blue-700 underline dark:text-blue-300"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <MapContainer
             center={BUK_CENTER}
             zoom={DEFAULT_ZOOM}
             style={{ height: "100%", width: "100%" }}
           >
             <MapSizeInvalidator />
+            <MapOriginPicker enabled={choosingOrigin} onPick={handleManualOriginPick} />
             {selectedLocation && <ChangeView location={selectedLocation} />}
             <UserLocationView position={userPosition} following={following} />
             <TileLayer
@@ -566,7 +757,11 @@ function CampusMap({
               <Marker
                 key={location.id}
                 position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
-                eventHandlers={{ click: () => handleSelect(location) }}
+                eventHandlers={{
+                  click: (event) => choosingOrigin
+                    ? handleManualOriginPick([event.latlng.lat, event.latlng.lng])
+                    : handleSelect(location),
+                }}
               >
                 <Popup>
                   <strong>{location.name}</strong><br />
@@ -577,14 +772,39 @@ function CampusMap({
                 </Popup>
               </Marker>
             ))}
-            {userPosition && (
-              <CircleMarker
+            {userPosition && userAccuracy != null && (
+              <Circle
                 center={userPosition}
-                radius={8}
-                pathOptions={{ color: "#ffffff", weight: 3, fillColor: "#2563eb", fillOpacity: 1 }}
-              >
-                <Popup>Your current location</Popup>
-              </CircleMarker>
+                radius={userAccuracy}
+                pathOptions={{
+                  color: "#2563eb",
+                  weight: 1,
+                  fillColor: "#3b82f6",
+                  fillOpacity: 0.12,
+                }}
+              />
+            )}
+            {userPosition && (
+              manualOrigin ? (
+                <Marker
+                  position={userPosition}
+                  draggable
+                  eventHandlers={{ dragend: handleManualOriginDrag }}
+                >
+                  <Popup>Selected start point · drag to adjust</Popup>
+                </Marker>
+              ) : (
+                <CircleMarker
+                  center={userPosition}
+                  radius={8}
+                  pathOptions={{ color: "#ffffff", weight: 3, fillColor: "#2563eb", fillOpacity: 1 }}
+                >
+                  <Popup>
+                    Your current location
+                    {userAccuracy != null && <><br />Reported accuracy: {formatAccuracy(userAccuracy)}</>}
+                  </Popup>
+                </CircleMarker>
+              )
             )}
             {destination && (
               <Marker position={destination}>

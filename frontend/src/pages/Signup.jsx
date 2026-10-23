@@ -108,7 +108,7 @@ function Signup() {
             <img
               src="/BUk%20logo%202.webp"
               alt="Bayero University Kano logo"
-              className="h-14 w-14 rounded-xl bg-white p-1 object-contain"
+              className="h-14 w-14 rounded-xl bg-white/70 p-1 object-contain opacity-90 transition-opacity hover:opacity-100"
             />
             <span className="mt-2 text-center text-sm font-medium text-blue-700 dark:text-blue-300">
               BUK Campus Assistant System

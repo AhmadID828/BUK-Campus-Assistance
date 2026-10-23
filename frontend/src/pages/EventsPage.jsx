@@ -200,18 +200,29 @@ const EventsPage = () => {
                   ["going", "Going", "bg-green-500 hover:bg-green-600"],
                   ["maybe", "Maybe", "bg-blue-500 hover:bg-blue-600"],
                   ["not_going", "Can't Go", "bg-gray-400 hover:bg-gray-500"],
-                ].map(([status, label, color]) => (
-                  <button
-                    key={status}
-                    onClick={() => handleRSVP(event.id, status)}
-                    disabled={rsvpLoading === event.id}
-                    className={`flex-1 px-3 py-1.5 ${color} disabled:opacity-50 text-white text-xs rounded-lg transition ${
-                      rsvpStatus[event.id] === status ? "ring-2 ring-slate-900 ring-offset-1" : ""
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+                ].map(([status, label, color]) => {
+                  const isSelected = rsvpStatus[event.id] === status;
+                  const hasSelection = Boolean(rsvpStatus[event.id]);
+
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => handleRSVP(event.id, status)}
+                      disabled={rsvpLoading === event.id}
+                      className={`flex-1 rounded-lg px-3 py-1.5 text-xs text-white transition disabled:cursor-wait disabled:opacity-50 ${color} ${
+                        isSelected
+                          ? "ring-2 ring-slate-900 ring-offset-2 dark:ring-white"
+                          : hasSelection
+                            ? "opacity-40 grayscale hover:opacity-80 hover:grayscale-0 focus-visible:opacity-100 focus-visible:grayscale-0"
+                            : ""
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
