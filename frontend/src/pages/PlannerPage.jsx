@@ -215,6 +215,7 @@ const PlannerPage = () => {
   const [topicHours, setTopicHours] = useState("2");
   const [topicPriority, setTopicPriority] = useState("2");
   const [savingTopic, setSavingTopic] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState(null);
 
   const fetchAll = async () => {
     if (!token) return;
@@ -423,6 +424,35 @@ const PlannerPage = () => {
     }
   }, "Remove Planner Topic");
 
+  const handleDeleteCourse = guard(async (course) => {
+    const confirmed = window.confirm(
+      `Delete ${course.course_code} (${course.course_title})? Its planner topics will be removed, but uploaded materials will be kept.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingCourseId(course.id);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/planner/courses/${course.id}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Could not delete course");
+      setSuccess(data.message || "Course deleted.");
+      if (String(selectedCourse) === String(course.id)) {
+        setSelectedCourse("");
+        setSelectedMaterial("");
+      }
+      await fetchAll();
+    } catch (err) {
+      setError(err?.message || "Could not delete course");
+    } finally {
+      setDeletingCourseId(null);
+    }
+  }, "Delete Course");
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
       <PageHeader
@@ -615,9 +645,20 @@ const PlannerPage = () => {
                       </p>
                     )}
                   </div>
-                  <span className="text-xs text-blue-600 font-medium">
-                    {course.completed_topics || 0}/{course.total_topics || 0} complete
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-blue-600 font-medium">
+                      {course.completed_topics || 0}/{course.total_topics || 0} complete
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCourse(course)}
+                      disabled={deletingCourseId === course.id}
+                      aria-label={`Delete ${course.course_code}`}
+                      className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-3 h-2 rounded-full bg-gray-100 dark:bg-gray-700">
                   <div
