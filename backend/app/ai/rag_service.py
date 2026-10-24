@@ -5,7 +5,7 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.ai.llm_service import get_embedding
+from app.ai.llm_service import get_embedding, semantic_embeddings_enabled
 
 
 CHROMA_PATH = Path(__file__).resolve().parents[2] / "chroma_db"
@@ -94,14 +94,20 @@ class RAGService:
         """Return retrieved context and compact source metadata."""
         if not query or not query.strip():
             return "No relevant study materials found.", []
+        if not semantic_embeddings_enabled():
+            return "No semantic study-material matches are available.", []
 
         try:
             results = self.get_user_vectorstore(user_id).similarity_search(query, k=k)
         except Exception as exc:
-            logger.exception("Study-material retrieval failed for user %s", user_id)
+            logger.warning(
+                "Semantic study-material retrieval is unavailable for user %s: %s",
+                user_id,
+                exc,
+            )
             return (
-                "No relevant study materials found. AI indexing is unavailable in this environment.",
-                [{"type": "study_material", "title": "AI indexing unavailable", "subject": "", "excerpt": str(exc)[:200]}],
+                "No semantic study-material matches are available.",
+                [],
             )
 
         if not results:
@@ -113,12 +119,14 @@ class RAGService:
             title = document.metadata.get("title") or "Unknown material"
             subject = document.metadata.get("subject") or ""
             label = f"{title} ({subject})" if subject else title
-            context_parts.append(f"From: {label}\n{document.page_content}")
+            excerpt = document.page_content.strip()
+            excerpt = excerpt.replace("<b>", "").replace("</b>", "")
+            context_parts.append(f"From: {label}\n{excerpt}")
             sources.append({
                 "type": "study_material",
                 "title": str(title),
                 "subject": str(subject),
-                "excerpt": document.page_content.strip()[:320],
+                "excerpt": excerpt[:320],
             })
 
         return "\n\n".join(context_parts), sources

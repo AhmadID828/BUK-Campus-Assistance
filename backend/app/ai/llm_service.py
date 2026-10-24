@@ -16,11 +16,22 @@ OLLAMA_BASE_URL = os.getenv(
 ).rstrip("/")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
-GROQ_EMBED_MODEL = os.getenv("GROQ_EMBED_MODEL", os.getenv("EMBED_MODEL", "nomic-embed-text"))
+GROQ_EMBED_MODEL = ""
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma2:2b")
 OLLAMA_QUIZ_MODEL = os.getenv("OLLAMA_QUIZ_MODEL", OLLAMA_MODEL)
-EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
+OLLAMA_EMBED_MODEL = os.getenv(
+    "OLLAMA_EMBED_MODEL",
+    os.getenv("EMBED_MODEL", "nomic-embed-text"),
+).strip()
 OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
+
+
+def get_embedding_provider() -> str:
+    return (os.getenv("LLM_PROVIDER", LLM_PROVIDER) or LLM_PROVIDER).strip().lower()
+
+
+def semantic_embeddings_enabled() -> bool:
+    return get_embedding_provider() == "ollama"
 
 
 def _post_json(
@@ -99,6 +110,10 @@ def get_embedding(text: str) -> list[float]:
     selected_provider = (os.getenv("LLM_PROVIDER", LLM_PROVIDER) or LLM_PROVIDER).strip().lower()
 
     if selected_provider == "groq":
+        if not GROQ_EMBED_MODEL:
+            raise RuntimeError(
+                "Semantic embeddings are disabled for Groq. Use PostgreSQL full-text search."
+            )
         if not GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY is required to generate embeddings in this environment.")
 
@@ -127,7 +142,7 @@ def get_embedding(text: str) -> list[float]:
 
     data = _post_json(
         f"{OLLAMA_BASE_URL}/api/embeddings",
-        {"model": EMBED_MODEL, "prompt": text},
+        {"model": OLLAMA_EMBED_MODEL, "prompt": text},
         timeout=45.0,
     )
     embedding = data.get("embedding")

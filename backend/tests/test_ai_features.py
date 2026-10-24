@@ -13,7 +13,14 @@ from fastapi import BackgroundTasks, HTTPException, UploadFile
 from pydantic import ValidationError
 from sqlalchemy.dialects import postgresql
 
-from app.ai.llm_service import LLMService, _post_json, clean_chat_response, generate_answer
+from app.ai.llm_service import (
+    LLMService,
+    _post_json,
+    clean_chat_response,
+    generate_answer,
+    get_embedding,
+    semantic_embeddings_enabled,
+)
 from app.ai.campus_qa import answer_campus_question
 from app.ai.rag_service import RAGService
 from app.models.faq import FAQ
@@ -625,6 +632,14 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CampusFAQChatTests(unittest.TestCase):
+    def test_material_search_excerpt_removes_postgres_highlight_tags(self):
+        excerpt = chat._clean_search_excerpt(
+            "<b>Installing</b> <b>illegal</b> software",
+            "unused fallback",
+        )
+
+        self.assertEqual(excerpt, "Installing illegal software")
+
     def test_material_search_weights_use_postgres_char_literals(self):
         compiled = str(
             chat._weighted_material_search_vector().compile(
@@ -859,6 +874,59 @@ class AISourceAndRagTests(unittest.TestCase):
             "subject": "SWE401",
             "excerpt": document.page_content,
         }])
+
+    def test_search_failure_does_not_appear_as_retrieved_source(self):
+        service = RAGService()
+        service.get_user_vectorstore = lambda user_id: SimpleNamespace( # type: ignore[method-assign]
+            similarity_search=lambda query, k: (_ for _ in ()).throw(
+                RuntimeError("embedding model unavailable")
+            )
+        )
+
+        with self.assertLogs("app.ai.rag_service", level="WARNING"):
+            context, sources = service.search_with_sources(9, "plagiarism", k=1)
+
+        self.assertEqual(context, "No semantic study-material matches are available.")
+        self.assertEqual(sources, [])
+
+    def test_groq_search_skips_semantic_index_for_full_text_fallback(self):
+        service = RAGService()
+        with (
+            patch.dict("os.environ", {"LLM_PROVIDER": "groq"}, clear=False),
+            patch.object(service, "get_user_vectorstore") as get_vectorstore,
+        ):
+            context, sources = service.search_with_sources(9, "plagiarism", k=1)
+
+        get_vectorstore.assert_not_called()
+        self.assertEqual(context, "No semantic study-material matches are available.")
+        self.assertEqual(sources, [])
+
+    def test_groq_uses_full_text_fallback_without_embedding_request(self):
+        with (
+            patch.dict("os.environ", {"LLM_PROVIDER": "groq"}, clear=False),
+            patch("app.ai.llm_service._post_json") as post_json,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "disabled for Groq"):
+                get_embedding("plagiarism")
+
+        post_json.assert_not_called()
+        with patch.dict("os.environ", {"LLM_PROVIDER": "groq"}, clear=False):
+            self.assertFalse(semantic_embeddings_enabled())
+
+    def test_ollama_embedding_uses_nomic_model(self):
+        with (
+            patch.dict("os.environ", {"LLM_PROVIDER": "ollama"}, clear=False),
+            patch("app.ai.llm_service.OLLAMA_EMBED_MODEL", "nomic-embed-text"),
+            patch(
+                "app.ai.llm_service._post_json",
+                return_value={"embedding": [0.1, 0.2, 0.3]},
+            ) as post_json,
+        ):
+            result = get_embedding("plagiarism")
+
+        self.assertEqual(result, [0.1, 0.2, 0.3])
+        self.assertEqual(post_json.call_args.args[1]["model"], "nomic-embed-text")
+        self.assertTrue(semantic_embeddings_enabled())
 
     def test_user_vectorstores_are_separated(self):
         service = RAGService()
@@ -1377,6 +1445,7 @@ class UploadIndexingTests(unittest.TestCase):
             with (
                 patch.object(materials, "UPLOAD_DIR", directory),
                 patch.object(materials, "extract_text_from_file", return_value="Lecture text"),
+                patch.object(materials, "semantic_embeddings_enabled", return_value=True),
                 patch.object(materials.rag_service, "add_material", side_effect=RuntimeError("index unavailable")),
                 patch.object(materials, "update_search_vector"),
                 self.assertLogs("app.routers.materials", level="ERROR"),
@@ -1395,6 +1464,52 @@ class UploadIndexingTests(unittest.TestCase):
         self.assertEqual(db.material.course_id, 11)
         self.assertEqual(db.material.subject, "CS201")
         self.assertEqual(result["course_code"], "CS201")
+
+    def test_groq_upload_skips_semantic_index_and_keeps_full_text_search(self):
+        course = SimpleNamespace(
+            id=11,
+            course_code="CS201",
+            course_title="Computer Science",
+        )
+
+        class FakeDB:
+            def query(self, model):
+                return SimpleNamespace(filter=lambda *conditions: SimpleNamespace(first=lambda: course))
+
+            def add(self, material):
+                self.material = material
+
+            def commit(self):
+                pass
+
+            def refresh(self, material):
+                material.id = 44
+
+        with tempfile.TemporaryDirectory() as directory:
+            upload_file = UploadFile(
+                filename="lecture.pdf",
+                file=BytesIO(b"sample pdf bytes"),
+            )
+            db = FakeDB()
+            with (
+                patch.object(materials, "UPLOAD_DIR", directory),
+                patch.object(materials, "extract_text_from_file", return_value="Lecture text"),
+                patch.object(materials, "semantic_embeddings_enabled", return_value=False),
+                patch.object(materials.rag_service, "add_material") as add_material,
+                patch.object(materials, "update_search_vector"),
+            ):
+                result = materials.upload_material(
+                    file=upload_file,
+                    title="Lecture",
+                    course_id=11,
+                    user=SimpleNamespace(id=2, full_name="Student"), # type:ignore
+                    db=db, # type:ignore
+                )
+
+        add_material.assert_not_called()
+        self.assertFalse(result["rag_indexed"])
+        self.assertTrue(result["full_text_indexed"])
+        self.assertIn("disabled for Groq", result["indexing_warning"])
 
     def test_upload_rejects_files_larger_than_two_megabytes(self):
         class FakeDB:

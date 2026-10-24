@@ -33,6 +33,7 @@ const MaterialsPage = () => {
   const [courseTitle, setCourseTitle] = useState("");
   const [examDate, setExamDate] = useState("");
   const [savingCourse, setSavingCourse] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState(null);
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -140,6 +141,35 @@ const MaterialsPage = () => {
       setSavingCourse(false);
     }
   }, "Course Registration");
+
+  const handleDeleteCourse = guard(async (course) => {
+    const confirmed = window.confirm(
+      `Delete ${course.course_code} · ${course.course_title}?\n\nIts planner topics will be removed, but uploaded materials will be kept and no longer linked to this course.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingCourseId(course.id);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/planner/courses/${course.id}`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Failed to delete course");
+
+      setCourses((currentCourses) =>
+        currentCourses.filter((registeredCourse) => registeredCourse.id !== course.id),
+      );
+      if (courseId === String(course.id)) setCourseId("");
+      setSuccess(`${course.course_code} was removed from your registered courses.`);
+    } catch (deleteError) {
+      setError(deleteError.message || "Failed to delete course");
+    } finally {
+      setDeletingCourseId(null);
+    }
+  }, "Delete Registered Course");
 
   const handleDeleteMaterial = guard(async (material) => {
     if (!window.confirm(`Delete "${material.title}" permanently?`)) return;
@@ -314,21 +344,41 @@ const MaterialsPage = () => {
           </button>
         </form>
         {courses.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {courses.map((course) => (
-              <button
-                type="button"
-                key={course.id}
-                onClick={() => setCourseId(String(course.id))}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                  courseId === String(course.id)
-                    ? "border-blue-700 bg-blue-700 text-white"
-                    : "border-blue-200 bg-white text-blue-800 hover:bg-blue-50 dark:border-gray-600 dark:bg-gray-800 dark:text-blue-200"
-                }`}
-              >
-                {course.course_code} · {course.course_title}
-              </button>
-            ))}
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+              Registered courses — use the trash icon to remove a course registered by mistake.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {courses.map((course) => (
+                <div
+                  key={course.id}
+                  className={`inline-flex items-center overflow-hidden rounded-full border text-xs font-semibold ${
+                    courseId === String(course.id)
+                      ? "border-blue-700 bg-blue-700 text-white"
+                      : "border-blue-200 bg-white text-blue-800 dark:border-gray-600 dark:bg-gray-800 dark:text-blue-200"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setCourseId(String(course.id))}
+                    aria-pressed={courseId === String(course.id)}
+                    className="py-1.5 pl-3 pr-2 transition hover:opacity-80"
+                  >
+                    {course.course_code} · {course.course_title}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCourse(course)}
+                    disabled={deletingCourseId === course.id}
+                    aria-label={`Delete ${course.course_code} registered course`}
+                    title={`Delete ${course.course_code}`}
+                    className="flex min-h-8 min-w-8 items-center justify-center border-l border-current/20 px-2 transition hover:bg-red-100 hover:text-red-700 disabled:cursor-wait disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-300"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>

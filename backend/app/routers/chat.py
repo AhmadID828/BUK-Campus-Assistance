@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, literal_column
@@ -17,6 +18,11 @@ from app.utils.dependencies import require_approved_user
 
 router = APIRouter(prefix="/chat", tags=["AI Chatbot"])
 logger = logging.getLogger(__name__)
+
+
+def _clean_search_excerpt(excerpt: object, fallback: object) -> str:
+    text = str(excerpt or fallback or "").strip()
+    return re.sub(r"</?b>", "", text, flags=re.IGNORECASE)
 
 
 def _weighted_material_search_vector():
@@ -120,9 +126,6 @@ def answer_academic_question(
         question,
         k=3,
     )  # type: ignore[arg-type]
-    index_unavailable = any(
-        source.get("title") == "AI indexing unavailable" for source in sources
-    )
     if db is not None and db.get_bind().dialect.name == "postgresql":
         ts_query = func.plainto_tsquery("english", question)
         search_vector = _weighted_material_search_vector()
@@ -156,7 +159,7 @@ def answer_academic_question(
                 if (title, subject) in existing_sources:
                     continue
                 label = f"{title} ({subject})" if subject else title
-                excerpt_text = str(excerpt or material_content or "").strip()
+                excerpt_text = _clean_search_excerpt(excerpt, material_content)
                 context_parts.append(f"From: {label}\n{excerpt_text}")
                 sources.append(
                     {
@@ -169,9 +172,6 @@ def answer_academic_question(
                 existing_sources.add((title, subject))
             if context_parts:
                 context = "\n\n".join(context_parts)
-        elif index_unavailable:
-            context = "No relevant study materials found."
-            sources = []
 
     prompt = f"""You are the BUK Campus Assistant System, a helpful academic assistant for Bayero University Kano students.
 First use the uploaded study-material context below to answer the question.

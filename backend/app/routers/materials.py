@@ -9,7 +9,12 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.ai.llm_service import GROQ_MODEL, OLLAMA_MODEL, generate_answer
+from app.ai.llm_service import (
+    GROQ_MODEL,
+    OLLAMA_MODEL,
+    generate_answer,
+    semantic_embeddings_enabled,
+)
 from app.ai.rag_service import rag_service
 from app.database import get_db # type: ignore
 from app.models.study_material import StudyMaterial # type: ignore
@@ -111,28 +116,33 @@ def upload_material(
     material_title = material.title
     material_subject = material.subject
 
-    rag_indexed = True
+    rag_indexed = semantic_embeddings_enabled()
     indexing_warning = None
-    try:
-        rag_service.add_material(
-            user_id=user.id, # type: ignore
-            material_id=material_id, # type: ignore
-            title=material_title, # type: ignore
-            content=extracted_text,
-            subject=course.course_code, # type: ignore
-        )
-    except Exception as exc:
-        rag_indexed = False
+    if rag_indexed:
+        try:
+            rag_service.add_material(
+                user_id=user.id, # type: ignore
+                material_id=material_id, # type: ignore
+                title=material_title, # type: ignore
+                content=extracted_text,
+                subject=course.course_code, # type: ignore
+            )
+        except Exception as exc:
+            rag_indexed = False
+            indexing_warning = (
+                "Semantic AI indexing failed. Study chat can still use this material through full-text search. "
+                "Check that Ollama is reachable and the configured embedding model is available."
+            )
+            logger.exception(
+                "RAG indexing failed for uploaded material %s owned by user %s",
+                material_id,
+                user.id,
+            )
+            logger.warning("RAG indexing failure context: %s", exc)
+    else:
         indexing_warning = (
-            "Semantic AI indexing failed. Study chat can still use this material through full-text search. "
-            "Ask an administrator to check the embedding provider to restore semantic search."
+            "Semantic indexing is disabled for Groq. Study chat will use PostgreSQL full-text search."
         )
-        logger.exception(
-            "RAG indexing failed for uploaded material %s owned by user %s",
-            material_id,
-            user.id,
-        )
-        logger.warning("RAG indexing failure context: %s", exc)
 
     full_text_indexed = True
     try:

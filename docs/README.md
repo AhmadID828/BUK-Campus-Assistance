@@ -68,12 +68,14 @@ Use the floating appearance button to choose Light, Dark, or System. The
 preference is saved in the browser; System follows the device's current
 appearance setting.
 
-Study chat uses the semantic index when the configured embedding provider is
-available. If semantic indexing or its stored full-text index fails after an
-upload, the saved material remains available through on-demand PostgreSQL
-full-text search; the upload notice reports that it is ready for AI study chat.
-Administrators can check the backend embedding-provider configuration to
-restore semantic indexing.
+Study chat uses provider-specific study-material retrieval. With
+`LLM_PROVIDER=groq`, uploads skip semantic indexing and study chat uses
+PostgreSQL full-text search; Groq is used for answer generation. With
+`LLM_PROVIDER=ollama`, semantic indexing and retrieval use the local Ollama
+`nomic-embed-text` model by default; set `OLLAMA_EMBED_MODEL` to override it.
+Ensure Ollama is running and has the model available on the backend machine.
+If local semantic indexing fails, saved materials remain available through
+PostgreSQL full-text search.
 
 ## Deployment
 
