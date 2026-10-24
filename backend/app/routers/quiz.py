@@ -7,6 +7,7 @@ from app.models.quiz import Quiz, QuizAttempt
 from app.models.planner import StudyTopic, Course
 from app.models.study_material import StudyMaterial #type: ignore
 from app.models.user import User
+from app.utils.notifications import create_notification
 from app.ai.llm_service import OLLAMA_QUIZ_MODEL, generate_answer
 from app.utils.dependencies import require_approved_user
 from jose import jwt, JWTError
@@ -342,6 +343,14 @@ async def submit_quiz(
     attempt.answers = student_answers
     attempt.submitted_at = datetime.now(timezone.utc) # type: ignore
     attempt.is_completed = 1 # type: ignore
+    create_notification(
+        db,
+        user_id=user.id,
+        kind="quiz_completed",
+        title="Quiz completed",
+        message=f"You completed {quiz.title} with a score of {score}%.",
+        dedupe_key=f"quiz-completed:{attempt.id}",
+    )
     db.commit()
 
         # ========== Adaptive Priority Adjustment ==========

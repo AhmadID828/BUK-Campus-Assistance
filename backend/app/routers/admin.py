@@ -9,6 +9,7 @@ from app.utils.auth import hash_password, password_validation_errors
 from app.models.study_material import StudyMaterial # type: ignore
 from app.models.quiz import Quiz, QuizAttempt
 from app.models.event import Event
+from app.utils.notifications import create_notification
 from app.schemas.user import AdminCreate, AdminStudentUpdate
 from sqlalchemy import func
 from datetime import date
@@ -428,6 +429,14 @@ async def approve_student(
         raise HTTPException(status_code=404, detail="Student not found")
 
     student.is_approved = True #type: ignore
+    create_notification(
+        db,
+        user_id=student.id,
+        kind="account_approved",
+        title="Account approved",
+        message="Your BUK Campus Assistant account has been approved.",
+        dedupe_key=f"account-approved:{student.id}",
+    )
     db.commit()
 
     email_sent = True

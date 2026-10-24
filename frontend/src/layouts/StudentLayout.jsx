@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import PendingApprovalBanner from "../components/PendingApprovalBanner";
 import Footer from "../components/Footer";
 import ConfirmDialog from "../components/ConfirmDialog";
+import NotificationBell from "../components/NotificationBell";
 import {
   LayoutDashboard,
   BookOpen,
@@ -235,6 +236,7 @@ const StudentLayout = () => {
                 .join(" • ")}
             </p>
           </div>
+          <NotificationBell />
         </header>
 
         

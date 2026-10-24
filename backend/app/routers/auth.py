@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
 from app.models.user import User
+from app.utils.notifications import create_notification
 from app.schemas.user import UserCreate, UserLogin, UserResponse
 from app.utils.auth import (
     hash_password,
@@ -253,7 +254,17 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    level_changed = current_user.level != profile.level
     current_user.level = profile.level
+    if level_changed:
+        create_notification(
+            db,
+            user_id=current_user.id,
+            kind="profile_updated",
+            title="Profile updated",
+            message=f"Your study level was updated to {profile.level}.",
+            dedupe_key=f"profile-updated:{current_user.id}:{datetime.utcnow().isoformat()}",
+        )
     db.commit()
     db.refresh(current_user)
     return {"user": current_user}

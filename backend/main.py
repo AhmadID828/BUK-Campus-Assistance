@@ -23,6 +23,7 @@ from app.models.campus_location import CampusLocation
 from app.models.emergency_contact import EmergencyContact
 from app.models.chat import ChatMessage, ChatSession
 from app.models.faq import FAQ
+from app.models.notification import Notification
 
 # Routers
 from app.routers.auth import router as auth_router
@@ -35,6 +36,7 @@ from app.routers.campus import router as campus_router
 from app.routers.events import router as events_router
 from app.routers.emergency import router as emergency_router
 from app.routers.faqs import router as faqs_router, admin_router as admin_faqs_router
+from app.routers.notifications import router as notifications_router
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +83,7 @@ app.include_router(campus_router)
 app.include_router(emergency_router)
 app.include_router(faqs_router)
 app.include_router(admin_faqs_router)
+app.include_router(notifications_router)
 
 
 @app.get("/")

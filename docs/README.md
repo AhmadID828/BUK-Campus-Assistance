@@ -9,6 +9,9 @@ and campus information together in one responsive web app.
 - Summarize study materials, build a study plan, and generate quizzes.
 - Register courses, upload materials under course codes, and schedule topics
   against optional exam dates.
+- Track account approval, profile changes, quiz completions, overdue study tasks,
+  and reminders for events marked as going in the notification bell. Chat and
+  uploaded-material activity are intentionally excluded.
 - Find campus places on the map and browse frequently asked questions. Walking
   directions require a usable location fix; if GPS is too imprecise, choose your
   starting point on the map instead.
@@ -116,7 +119,9 @@ production data before database changes, and use reviewed migrations for schema
 updates. Apply `backend/migrations/003_link_materials_to_courses.sql` before
 deploying the course-linked materials and planner changes, and
 `backend/migrations/004_add_old_campus_location.sql` to add the BUK Old Campus
-map marker.
+map marker, and `backend/migrations/005_add_notifications.sql` to create the
+notification table. The notification bell shows unread counts and supports
+marking individual notifications or all notifications as read.
 
 ## Accounts and access
 

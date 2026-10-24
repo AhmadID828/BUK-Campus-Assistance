@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, literal_column
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,36 @@ from app.utils.dependencies import require_approved_user
 
 router = APIRouter(prefix="/chat", tags=["AI Chatbot"])
 logger = logging.getLogger(__name__)
+
+
+def _weighted_material_search_vector():
+    return (
+        func.setweight(
+            func.to_tsvector(
+                "english",
+                func.coalesce(StudyMaterial.title, ""),
+            ),
+            literal_column("'A'::\"char\""),
+        )
+        .op("||")(
+            func.setweight(
+                func.to_tsvector(
+                    "english",
+                    func.coalesce(StudyMaterial.subject, ""),
+                ),
+                literal_column("'B'::\"char\""),
+            )
+        )
+        .op("||")(
+            func.setweight(
+                func.to_tsvector(
+                    "english",
+                    func.coalesce(StudyMaterial.content, ""),
+                ),
+                literal_column("'C'::\"char\""),
+            )
+        )
+    )
 
 
 @router.get("/sessions")
@@ -95,15 +125,7 @@ def answer_academic_question(
     )
     if db is not None and db.get_bind().dialect.name == "postgresql":
         ts_query = func.plainto_tsquery("english", question)
-        search_vector = (
-            func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.title, "")), "A")
-            .op("||")(
-                func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.subject, "")), "B")
-            )
-            .op("||")(
-                func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.content, "")), "C")
-            )
-        )
+        search_vector = _weighted_material_search_vector()
         rank = func.ts_rank(search_vector, ts_query)
         headline = func.ts_headline(
             "english",

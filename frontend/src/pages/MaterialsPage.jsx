@@ -394,7 +394,7 @@ const MaterialsPage = () => {
             type="file"
             accept=".pdf,.docx,.pptx"
             onChange={handleFileChange}
-            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
+            className="w-full cursor-pointer px-3 py-2 file:cursor-pointer bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             PDF, DOCX or PPTX · Maximum file size: 2 MB
@@ -404,7 +404,7 @@ const MaterialsPage = () => {
           <button
             type="submit"
             disabled={upload?.status === "uploading" || !courses.length}
-            className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+            className="flex cursor-pointer items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-lg text-sm font-medium"
           >
             <Upload className="w-4 h-4" />
             {upload?.status === "uploading" ? "Uploading..." : "Upload Material"}

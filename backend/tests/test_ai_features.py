@@ -11,11 +11,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 from pydantic import ValidationError
+from sqlalchemy.dialects import postgresql
 
 from app.ai.llm_service import LLMService, _post_json, clean_chat_response, generate_answer
 from app.ai.campus_qa import answer_campus_question
 from app.ai.rag_service import RAGService
 from app.models.faq import FAQ
+from app.models.notification import Notification
 from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.routers import admin, auth, chat, emergency, events, faqs, materials, planner, quiz
@@ -558,7 +560,15 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         query = SimpleNamespace(
             filter=lambda *conditions: SimpleNamespace(first=lambda: student)
         )
-        db = SimpleNamespace(query=lambda model: query, commit=lambda: None)
+        notification_query = SimpleNamespace(
+            filter=lambda *conditions: SimpleNamespace(first=lambda: None)
+        )
+        added_notifications = []
+        db = SimpleNamespace(
+            query=lambda model: query if model is User else notification_query,
+            add=added_notifications.append,
+            commit=lambda: None,
+        )
 
         with patch("app.routers.admin.send_approval_email", new_callable=AsyncMock) as send:
             result = await admin.approve_student(
@@ -573,6 +583,9 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(student.is_approved)
         self.assertTrue(result["email_sent"])
+        self.assertEqual(len(added_notifications), 1)
+        self.assertIsInstance(added_notifications[0], Notification)
+        self.assertEqual(added_notifications[0].kind, "account_approved")
 
     async def test_forgot_password_uses_deployed_frontend_url(self):
         user = SimpleNamespace(email="student@example.test")
@@ -612,6 +625,20 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CampusFAQChatTests(unittest.TestCase):
+    def test_material_search_weights_use_postgres_char_literals(self):
+        compiled = str(
+            chat._weighted_material_search_vector().compile(
+                dialect=postgresql.dialect()
+            )
+        )
+
+        self.assertIn("""'A'::"char" """.strip(), compiled)
+        self.assertIn("""'B'::"char" """.strip(), compiled)
+        self.assertIn("""'C'::"char" """.strip(), compiled)
+        self.assertNotIn("setweight_1", compiled)
+        self.assertNotIn("setweight_2", compiled)
+        self.assertNotIn("setweight_3", compiled)
+
     def test_campus_question_uses_faq_as_ai_context(self):
         faq = SimpleNamespace(
             id=6,
