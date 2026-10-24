@@ -51,14 +51,21 @@ export default function NotificationBell() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        loadNotifications();
+      }
+    };
+
     loadNotifications(controller.signal);
-    const intervalId = window.setInterval(
-      () => loadNotifications(),
-      60_000,
-    );
+    const intervalId = window.setInterval(refreshWhenVisible, 15_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       controller.abort();
       window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [loadNotifications]);
 
@@ -125,7 +132,11 @@ export default function NotificationBell() {
         type="button"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
         aria-expanded={open}
-        onClick={() => setOpen((isOpen) => !isOpen)}
+        onClick={() => {
+          const willOpen = !open;
+          setOpen(willOpen);
+          if (willOpen) loadNotifications();
+        }}
         className="relative rounded-xl border border-blue-100 p-2.5 text-slate-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-600 dark:text-slate-100 dark:hover:bg-gray-700"
       >
         <Bell size={20} aria-hidden="true" />

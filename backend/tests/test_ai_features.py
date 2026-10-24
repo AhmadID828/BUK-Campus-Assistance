@@ -682,6 +682,21 @@ class CampusFAQChatTests(unittest.TestCase):
 
 
 class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
+    def test_plan_generation_without_pending_topics_does_not_replace_active_plan(self):
+        db = MagicMock()
+        db.query.return_value.join.return_value.filter.return_value.order_by.return_value.all.return_value = []
+
+        with self.assertRaises(HTTPException) as raised:
+            planner.create_study_plan(
+                db,
+                SimpleNamespace(id=4),  # type: ignore[arg-type]
+                title_prefix="Study Plan",
+            )
+
+        self.assertEqual(raised.exception.status_code, 400)
+        db.query.assert_called_once_with(planner.StudyTopic)
+        db.commit.assert_not_called()
+
     def test_plan_places_topics_before_their_course_exam(self):
         course = SimpleNamespace(exam_date=date(2026, 10, 24), course_code="CS201")
         topics = [
@@ -728,6 +743,45 @@ class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
         for item in items:
             hours_by_date[item["date"]] = hours_by_date.get(item["date"], 0) + item["hours"]
         self.assertLessEqual(max(hours_by_date.values()), 6)
+
+    def test_plan_schedules_weaker_quiz_materials_first_within_priority(self):
+        course = SimpleNamespace(exam_date=None, course_code="CS201")
+        topics = [
+            SimpleNamespace(
+                id=1,
+                course_id=1,
+                material_id=101,
+                course=course,
+                title="Strong quiz result",
+                estimated_hours=4,
+                priority=2,
+            ),
+            SimpleNamespace(
+                id=2,
+                course_id=1,
+                material_id=102,
+                course=course,
+                title="Weak quiz result",
+                estimated_hours=4,
+                priority=2,
+            ),
+        ]
+
+        items = planner.build_plan_items(
+            topics,
+            date(2026, 10, 22),
+            quiz_scores={101: 90, 102: 35},
+        )
+
+        by_material = {item["material_id"]: item for item in items}
+        self.assertLess(
+            by_material[102]["date"],
+            by_material[101]["date"],
+        )
+        self.assertEqual(by_material[102]["quiz_score"], 35)
+        self.assertEqual(by_material[101]["quiz_score"], 90)
+        self.assertEqual(by_material[102]["planning_priority"], 1)
+        self.assertEqual(by_material[101]["planning_priority"], 3)
 
     def test_plan_schedules_long_topics_without_exceeding_the_deadline_loop(self):
         courses = [
@@ -776,12 +830,15 @@ class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(db.saved[0].priority, 1)
         self.assertEqual(db.saved[0].estimated_hours, 3)
 
-    async def test_delete_course_removes_topics_but_keeps_materials(self):
+    async def test_delete_course_removes_topics_and_uploaded_materials(self):
         course = SimpleNamespace(
             id=12,
             course_code="CSC301",
-            topics=[SimpleNamespace(id=5), SimpleNamespace(id=6)],
         )
+        materials = [
+            SimpleNamespace(id=20, file_path="missing-upload-20.pdf"),
+            SimpleNamespace(id=21, file_path="missing-upload-21.pdf"),
+        ]
         plan = SimpleNamespace(
             plan_data=json.dumps([
                 {"topic_id": 5, "date": "2026-10-24"},
@@ -797,19 +854,30 @@ class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
         plan_query.filter.return_value.all.return_value = [plan]
         topic_query = MagicMock()
         material_query = MagicMock()
+        material_query.filter.return_value.all.return_value = materials
+        material_query.filter.return_value.first.return_value = None
+        topic_query.filter.return_value.all.return_value = [
+            SimpleNamespace(id=5),
+            SimpleNamespace(id=6),
+        ]
         db = MagicMock()
         db.query.side_effect = lambda model: {
             planner.Course: course_query,
             planner.StudyPlan: plan_query,
             planner.StudyTopic: topic_query,
             StudyMaterial: material_query,
+            StudyMaterial.id: material_query,
         }[model]
 
-        result = await planner.delete_course(
-            course_id=12,
-            user=SimpleNamespace(id=4),  # type: ignore[arg-type]
-            db=db,  # type: ignore[arg-type]
-        )
+        with (
+            patch("app.routers.planner.rag_service.delete_material"),
+            patch("app.routers.planner.os.path.exists", return_value=False),
+        ):
+            result = await planner.delete_course(
+                course_id=12,
+                user=SimpleNamespace(id=4),  # type: ignore[arg-type]
+                db=db,  # type: ignore[arg-type]
+            )
 
         self.assertFalse(plan.is_active)
         self.assertEqual(
@@ -819,9 +887,9 @@ class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
         topic_query.filter.return_value.delete.assert_called_once_with(
             synchronize_session=False
         )
-        material_query.filter.return_value.update.assert_called_once()
-        db.delete.assert_called_once_with(course)
-        self.assertIn("materials were kept", result["message"])
+        self.assertEqual(db.delete.call_count, 3)
+        self.assertEqual(result["deleted_material_count"], 2)
+        self.assertIn("materials were deleted", result["message"])
 
     async def test_add_topic_rejects_out_of_range_study_time(self):
         course = SimpleNamespace(id=2, user_id=4)

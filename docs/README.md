@@ -9,6 +9,9 @@ and campus information together in one responsive web app.
 - Summarize study materials, build a study plan, and generate quizzes.
 - Register courses, upload materials under course codes, and schedule topics
   against optional exam dates.
+- The study planner balances scheduled work against a six-hour daily target,
+  works toward upcoming exam dates, and gives lower recent quiz scores higher
+  scheduling priority. Planner data refreshes automatically while the page is open.
 - Track account approval, profile changes, quiz completions, overdue study tasks,
   and reminders for events marked as going in the notification bell. Chat and
   uploaded-material activity are intentionally excluded.

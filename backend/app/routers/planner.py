@@ -1,9 +1,11 @@
 from datetime import date, timedelta
-from typing import List, Optional
 import json
+import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
+from app.ai.rag_service import rag_service
 from app.database import get_db # type: ignore
 from app.models.planner import Course, StudyTopic, StudyPlan
 from app.models.user import User
@@ -15,51 +17,206 @@ from app.utils.email import send_email
 
 
 router = APIRouter(prefix="/planner", tags=["Adaptive Study Planner"])
+logger = logging.getLogger(__name__)
 
 
-def build_plan_items(topics: list[StudyTopic], start_date: date) -> list[dict]:
+def adaptive_priority(priority: int | None, quiz_score: float | None) -> int:
+    base_priority = priority or 2
+    if quiz_score is None:
+        return base_priority
+    if quiz_score < 50:
+        return 1
+    if quiz_score < 65:
+        return min(base_priority, 2)
+    if quiz_score >= 85:
+        return min(base_priority + 1, 3)
+    return base_priority
+
+
+def build_plan_items(
+    topics: list[StudyTopic],
+    start_date: date,
+    quiz_scores: dict[int, float] | None = None,
+) -> list[dict]:
+    quiz_scores = quiz_scores or {}
     grouped_topics: dict[int | None, list[StudyTopic]] = {}
     for topic in topics:
         grouped_topics.setdefault(topic.course_id, []).append(topic)
 
+    placements = []
+    for course_topics in grouped_topics.values():
+        course_topics.sort(
+            key=lambda topic: (
+                adaptive_priority(
+                    topic.priority,
+                    quiz_scores.get(topic.material_id)
+                    if topic.material_id is not None
+                    else None,
+                ),
+                quiz_scores.get(topic.material_id, 100)
+                if topic.material_id is not None
+                else 100,
+                (topic.title or "").casefold(),
+                topic.id or 0,
+            )
+        )
+        exam_date = course_topics[0].course.exam_date if course_topics[0].course else None
+        deadline = exam_date if exam_date and exam_date >= start_date else None
+        days_until_exam = (deadline - start_date).days if deadline else 0
+
+        for topic_index, topic in enumerate(course_topics):
+            day_offset = (
+                min(
+                    days_until_exam,
+                    ((topic_index + 1) * (days_until_exam + 1) // len(course_topics)) - 1,
+                )
+                if deadline
+                else 0
+            )
+            placements.append(
+                {
+                    "topic": topic,
+                    "preferred_date": start_date + timedelta(days=max(day_offset, 0)),
+                    "deadline": deadline,
+                    "hours": max(float(topic.estimated_hours or 2), 0.5),
+                    "planning_priority": adaptive_priority(
+                        topic.priority,
+                        quiz_scores.get(topic.material_id)
+                        if topic.material_id is not None
+                        else None,
+                    ),
+                }
+            )
+
+    placements.sort(
+        key=lambda placement: (
+            placement["preferred_date"],
+            placement["deadline"] or date.max,
+            placement["planning_priority"],
+            quiz_scores.get(placement["topic"].material_id, 100)
+            if placement["topic"].material_id is not None
+            else 100,
+            (placement["topic"].title or "").casefold(),
+            placement["topic"].id or 0,
+        )
+    )
+
     scheduled_hours: dict[date, float] = {}
     items = []
-    for topic in topics:
-        course_topics = grouped_topics[topic.course_id]
-        topic_index = course_topics.index(topic)
-        exam_date = topic.course.exam_date if topic.course else None
-        if exam_date and exam_date >= start_date:
-            days_until_exam = (exam_date - start_date).days
-            day_offset = min(
-                days_until_exam,
-                ((topic_index + 1) * (days_until_exam + 1) // len(course_topics)) - 1,
-            )
-        else:
-            day_offset = topic_index
+    for placement in placements:
+        topic = placement["topic"]
+        study_hours = placement["hours"]
+        proposed_date = placement["preferred_date"]
+        deadline = placement["deadline"]
 
-        proposed_date = start_date + timedelta(days=max(day_offset, 0))
-        study_hours = max(float(topic.estimated_hours or 2), 0.5)
-        deadline = exam_date if exam_date and exam_date >= start_date else None
-        while (
-            scheduled_hours.get(proposed_date, 0) > 0
-            and scheduled_hours.get(proposed_date, 0) + study_hours > 6
-            and (deadline is None or proposed_date < deadline)
-        ):
-            proposed_date += timedelta(days=1)
-        scheduled_hours[proposed_date] = (
-            scheduled_hours.get(proposed_date, 0) + study_hours
+        if study_hours > 6:
+            while scheduled_hours.get(proposed_date, 0) > 0:
+                if deadline and proposed_date >= deadline:
+                    break
+                proposed_date += timedelta(days=1)
+        else:
+            while scheduled_hours.get(proposed_date, 0) + study_hours > 6:
+                if deadline and proposed_date >= deadline:
+                    break
+                proposed_date += timedelta(days=1)
+
+        scheduled_hours[proposed_date] = scheduled_hours.get(proposed_date, 0) + study_hours
+        items.append(
+            {
+                "topic_id": topic.id,
+                "material_id": topic.material_id,
+                "date": str(proposed_date),
+                "course": topic.course.course_code if topic.course else "General",
+                "topic": topic.title,
+                "hours": study_hours,
+                "priority": topic.priority,
+                "planning_priority": placement["planning_priority"],
+                "quiz_score": (
+                    quiz_scores[topic.material_id]
+                    if topic.material_id in quiz_scores
+                    else None
+                ),
+                "workload_exceeded": scheduled_hours[proposed_date] > 6,
+            }
         )
 
-        items.append({
-            "topic_id": topic.id,
-            "material_id": topic.material_id,
-            "date": str(proposed_date),
-            "course": topic.course.course_code if topic.course else "General",
-            "topic": topic.title,
-            "hours": study_hours,
-            "priority": topic.priority,
-        })
+    for item in items:
+        item["day_total_hours"] = scheduled_hours[date.fromisoformat(item["date"])]
     return items
+
+
+def get_latest_quiz_scores(db: Session, user_id: int) -> dict[int, float]:
+    attempts = (
+        db.query(QuizAttempt, Quiz)
+        .join(Quiz, Quiz.id == QuizAttempt.quiz_id)
+        .filter(
+            QuizAttempt.user_id == user_id,
+            QuizAttempt.is_completed == 1,
+            QuizAttempt.score.is_not(None),
+            Quiz.material_id.is_not(None),
+        )
+        .order_by(
+            func.coalesce(QuizAttempt.submitted_at, QuizAttempt.created_at).desc(),
+            QuizAttempt.id.desc(),
+        )
+        .all()
+    )
+    latest_scores: dict[int, float] = {}
+    for attempt, quiz in attempts:
+        if quiz.material_id is not None and attempt.score is not None:
+            latest_scores.setdefault(quiz.material_id, float(attempt.score))
+    return latest_scores
+
+
+def create_study_plan(db: Session, user: User, *, title_prefix: str) -> dict:
+    topics = (
+        db.query(StudyTopic)
+        .join(Course)
+        .filter(Course.user_id == user.id, StudyTopic.is_completed.is_(False))
+        .order_by(StudyTopic.priority, StudyTopic.id)
+        .all()
+    )
+    if not topics:
+        raise HTTPException(
+            status_code=400,
+            detail="Add at least one incomplete study topic before generating a plan",
+        )
+
+    quiz_scores = get_latest_quiz_scores(db, user.id)
+    today = date.today()
+    plan_items = build_plan_items(topics, today, quiz_scores)
+    end_date = max(
+        (date.fromisoformat(item["date"]) for item in plan_items),
+        default=today,
+    )
+
+    study_plan = StudyPlan(
+        user_id=user.id,
+        title=f"{title_prefix} - {today}",
+        start_date=today,
+        end_date=end_date,
+        plan_data=json.dumps(plan_items),
+        is_active=True,
+    )
+    db.add(study_plan)
+    for old_plan in db.query(StudyPlan).filter(
+        StudyPlan.user_id == user.id,
+        StudyPlan.is_active.is_(True),
+    ).all():
+        old_plan.is_active = False
+    db.commit()
+    db.refresh(study_plan)
+
+    return {
+        "message": (
+            "Study plan regenerated successfully"
+            if title_prefix.startswith("Regenerated")
+            else "Adaptive study plan generated successfully"
+        ),
+        "plan_id": study_plan.id,
+        "total_topics": len(plan_items),
+        "plan": plan_items,
+    }
 
 
 # ========== COURSE AND MATERIAL SOURCES ==========
@@ -150,7 +307,24 @@ async def delete_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    topic_ids = [topic.id for topic in course.topics]
+    materials = db.query(StudyMaterial).filter(
+        StudyMaterial.course_id == course.id,
+        StudyMaterial.owner_id == user.id,
+    ).all()
+    material_ids = [material.id for material in materials]
+    material_paths = [material.file_path for material in materials if material.file_path]
+    topics_query = db.query(StudyTopic)
+    if material_ids:
+        topics_query = topics_query.filter(
+            or_(
+                StudyTopic.course_id == course.id,
+                StudyTopic.material_id.in_(material_ids),
+            )
+        )
+    else:
+        topics_query = topics_query.filter(StudyTopic.course_id == course.id)
+    topics = topics_query.all()
+    topic_ids = [topic.id for topic in topics]
     for plan in db.query(StudyPlan).filter(
         StudyPlan.user_id == user.id,
         StudyPlan.is_active.is_(True),
@@ -175,19 +349,36 @@ async def delete_course(
         db.query(StudyTopic).filter(StudyTopic.id.in_(topic_ids)).delete(
             synchronize_session=False
         )
-        db.expire(course, ["topics"])
-    db.query(StudyMaterial).filter(
-        StudyMaterial.course_id == course.id,
-        StudyMaterial.owner_id == user.id,
-    ).update(
-        {StudyMaterial.course_id: None},
-        synchronize_session=False,
-    )
+    for material in materials:
+        db.delete(material)
     db.delete(course)
     db.commit()
+
+    for material_id in material_ids:
+        try:
+            rag_service.delete_material(user.id, material_id)
+        except Exception:
+            logger.exception(
+                "RAG cleanup failed for material %s during course deletion",
+                material_id,
+            )
+    for file_path in material_paths:
+        try:
+            still_referenced = db.query(StudyMaterial.id).filter(
+                StudyMaterial.file_path == file_path
+            ).first()
+            if not still_referenced and os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            logger.exception(
+                "Uploaded file cleanup failed during course deletion: %s",
+                file_path,
+            )
+
     return {
-        "message": "Course deleted. Its uploaded materials were kept, but its planner topics were removed.",
+        "message": "Course and its uploaded materials were deleted.",
         "course_id": course_id,
+        "deleted_material_count": len(material_ids),
     }
 
 
@@ -368,85 +559,7 @@ async def generate_study_plan(
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db)
 ): 
-
-    materials = db.query(StudyMaterial).filter(
-        StudyMaterial.owner_id == user.id
-    ).all()
-
-    # Use completed quiz results to move weak material earlier in the plan.
-    quiz_scores = {}
-    attempts = (
-        db.query(QuizAttempt, Quiz)
-        .join(Quiz, Quiz.id == QuizAttempt.quiz_id)
-        .filter(
-            QuizAttempt.user_id == user.id,
-            QuizAttempt.is_completed == 1,
-            QuizAttempt.score.is_not(None),
-        )
-        .all()
-    )
-    for attempt, quiz in attempts:
-        if quiz.material_id is not None:
-            quiz_scores.setdefault(quiz.material_id, []).append(float(attempt.score or 0))
-    quiz_averages = {
-        material_id: sum(scores) / len(scores)
-        for material_id, scores in quiz_scores.items()
-    }
-
-    topics = (
-        db.query(StudyTopic)
-        .join(Course)
-        .filter(Course.user_id == user.id, StudyTopic.is_completed == False)
-        .order_by(StudyTopic.priority)
-        .all()
-    )
-
-    if not topics:
-        raise HTTPException(
-            status_code=400,
-            detail="Upload study materials or add topics before generating a plan",
-        )
-
-    for old_plan in db.query(StudyPlan).filter(
-        StudyPlan.user_id == user.id,
-        StudyPlan.is_active.is_(True),
-    ).all():
-        old_plan.is_active = False
-
-    material_ids_by_title = {material.title: material.id for material in materials}
-    for topic in topics:
-        material_id = topic.material_id or material_ids_by_title.get(topic.title)
-        score = quiz_averages.get(material_id) if material_id else None
-        if score is not None:
-            topic.priority = 1 if score < 60 else 2 if score < 80 else 3
-            topic.estimated_hours = 3.0 if score < 60 else 2.0
-
-    today = date.today()
-    plan = build_plan_items(topics, today)
-    end_date = max(
-        (date.fromisoformat(item["date"]) for item in plan),
-        default=today,
-    ) + timedelta(days=1)
-
-    # Save the plan
-    study_plan = StudyPlan(
-        user_id=user.id,
-        title=f"Study Plan - {today}",
-        start_date=today,
-        end_date=end_date,
-        plan_data=json.dumps(plan),
-        is_active=True
-    )
-    db.add(study_plan)
-    db.commit()
-    db.refresh(study_plan)
-
-    return {
-        "message": "Adaptive study plan generated successfully",
-        "plan_id": study_plan.id,
-        "total_topics": len(plan),
-        "plan": plan
-    }
+    return create_study_plan(db, user, title_prefix="Study Plan")
 
 # ========== GET ACTIVE PLAN ==========
 @router.get("/active")
@@ -481,6 +594,27 @@ async def get_active_plan(user: User = Depends(require_approved_user), db: Sessi
         "end_date": plan.end_date,
         "plan": plan_items
     }
+
+
+@router.delete("/active")
+async def delete_active_plan(
+    user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
+):
+    plan = (
+        db.query(StudyPlan)
+        .filter(StudyPlan.user_id == user.id, StudyPlan.is_active.is_(True))
+        .order_by(StudyPlan.created_at.desc())
+        .first()
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="No active study plan found")
+
+    plan.is_active = False
+    db.commit()
+    return {"message": "Active study plan deleted"}
+
+
 @router.put("/topics/{topic_id}/priority")
 async def update_topic_priority(
     topic_id: int,
@@ -729,57 +863,7 @@ async def regenerate_study_plan(
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db)
 ):
-    # Deactivate old plans
-    old_plans = db.query(StudyPlan).filter(
-        StudyPlan.user_id == user.id,
-        StudyPlan.is_active == True
-    ).all()
-
-    for plan in old_plans:
-        plan.is_active = False #type:ignore
-    db.commit()
-
-    # Get remaining incomplete topics (ordered by priority)
-    topics = (
-        db.query(StudyTopic)
-        .join(Course)
-        .filter(
-            Course.user_id == user.id,
-            StudyTopic.is_completed == False
-        )
-        .order_by(StudyTopic.priority)
-        .all()
-    )
-
-    if not topics:
-        raise HTTPException(status_code=400, detail="No pending topics left to schedule")
-
-    today = date.today()
-    plan = []
-    plan = build_plan_items(topics, today)
-    end_date = max(
-        (date.fromisoformat(item["date"]) for item in plan),
-        default=today,
-    ) + timedelta(days=1)
-
-    new_plan = StudyPlan(
-        user_id=user.id,
-        title=f"Regenerated Plan - {today}",
-        start_date=today,
-        end_date=end_date,
-        plan_data=json.dumps(plan),
-        is_active=True
-    )
-    db.add(new_plan)
-    db.commit()
-    db.refresh(new_plan)
-
-    return {
-        "message": "Study plan regenerated successfully",
-        "plan_id": new_plan.id,
-        "total_topics": len(plan),
-        "plan": plan
-    }
+    return create_study_plan(db, user, title_prefix="Regenerated Plan")
 
 
 @router.post("/send-daily-reminder")

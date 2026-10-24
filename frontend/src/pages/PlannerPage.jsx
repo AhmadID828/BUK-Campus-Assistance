@@ -1,9 +1,10 @@
-/* eslint-disable react-hooks/exhaustive-deps */ 
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { API_BASE_URL } from "../config";
 import useApprovalGuard from "../hooks/useApprovalGuard";
+import ConfirmDialog from "../components/ConfirmDialog";
 import PageHeader from "../components/PageHeader";
 import LockedFeatureModal from "../components/LockedFeatureModal";
 import {
@@ -11,6 +12,7 @@ import {
   RefreshCw,
   CheckCircle2,
   Loader2,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 
@@ -20,6 +22,7 @@ const PlannerSchedule = ({
   onUpdateTopic,
   onCompleteTopic,
   onRemoveTopic,
+  onDeletePlan,
 }) => {
   const displayDate = (value) => {
     if (!value) return "Date to be scheduled";
@@ -62,9 +65,20 @@ const PlannerSchedule = ({
             </div>
           </div>
           {plan && (
-            <div className="rounded-xl bg-white/10 px-3 py-2 text-right">
-              <p className="text-lg font-bold">{completedCount}/{items.length}</p>
-              <p className="text-[11px] text-blue-100">topics completed</p>
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-white/10 px-3 py-2 text-right">
+                <p className="text-lg font-bold">{completedCount}/{items.length}</p>
+                <p className="text-[11px] text-blue-100">topics completed</p>
+              </div>
+              <button
+                type="button"
+                onClick={onDeletePlan}
+                aria-label="Delete active study plan"
+                title="Delete active study plan"
+                className="rounded-xl bg-white/10 p-2.5 text-white transition hover:bg-red-500/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
           )}
         </div>
@@ -144,6 +158,26 @@ const PlannerSchedule = ({
                     <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
                       {item.hours}h study time
                     </span>
+                    {typeof item.quiz_score === "number" && (
+                      <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+                        Latest quiz: {Math.round(item.quiz_score)}%
+                      </span>
+                    )}
+                    {item.planning_priority &&
+                      item.priority !== item.planning_priority && (
+                        <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
+                          Adaptive priority:{" "}
+                          {["", "High", "Medium", "Low"][item.planning_priority]}
+                        </span>
+                      )}
+                    {item.workload_exceeded && (
+                      <span
+                        className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                        title={`Scheduled daily total: ${item.day_total_hours} hours`}
+                      >
+                        Daily limit exceeded
+                      </span>
+                    )}
                     {item.topic_id && !item.completed && (
                       <select
                         value={item.priority}
@@ -178,7 +212,7 @@ const PlannerSchedule = ({
                     )}
                     {item.topic_id && (
                       <button
-                        onClick={() => onRemoveTopic(item.topic_id)}
+                        onClick={() => onRemoveTopic(item)}
                         className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-900/20"
                         title="Remove from planner"
                         aria-label={`Remove ${item.topic} from planner`}
@@ -205,6 +239,8 @@ const PlannerPage = () => {
   const [progress, setProgress] = useState(null);
   const [reminders, setReminders] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -216,12 +252,26 @@ const PlannerPage = () => {
   const [topicPriority, setTopicPriority] = useState("2");
   const [savingTopic, setSavingTopic] = useState(false);
   const [deletingCourseId, setDeletingCourseId] = useState(null);
+  const [deletingTopicId, setDeletingTopicId] = useState(null);
+  const [deletingPlan, setDeletingPlan] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [planAction, setPlanAction] = useState(null);
+  const refreshInFlight = useRef(false);
+  const refreshQueued = useRef(false);
 
-  const fetchAll = async () => {
+  const fetchAll = async ({ silent = false } = {}) => {
     if (!token) return;
+    if (refreshInFlight.current) {
+      refreshQueued.current = true;
+      return;
+    }
 
-    setLoading(true);
-    setError("");
+    refreshInFlight.current = true;
+    if (silent) setRefreshing(true);
+    else {
+      setLoading(true);
+      setError("");
+    }
 
     try {
       const [planRes, progressRes, reminderRes, coursesRes, materialsRes] = await Promise.all([
@@ -252,8 +302,12 @@ const PlannerPage = () => {
           throw new Error(data.detail || `Failed to load ${name} (${response.status})`);
         }
       }
+      if (!planRes.ok && planRes.status !== 404) {
+        const data = await planRes.json().catch(() => ({}));
+        throw new Error(data.detail || `Failed to load active study plan (${planRes.status})`);
+      }
       if (!coursesRes.ok || !materialsRes.ok) {
-        throw new Error("Unable to load courses or study materials. Please refresh and try again.");
+        throw new Error("Unable to load courses or study materials. Please try again shortly.");
       }
 
       setPlan(planRes.ok ? await planRes.json() : null);
@@ -261,15 +315,36 @@ const PlannerPage = () => {
       setReminders(await reminderRes.json());
       setCourses((await coursesRes.json()).courses || []);
       setMaterials((await materialsRes.json()).materials || []);
+      setLastUpdated(new Date());
+      setError("");
     } catch (err) {
       setError(err?.message || "Failed to load planner data");
     } finally {
-      setLoading(false);
+      refreshInFlight.current = false;
+      if (silent) setRefreshing(false);
+      else setLoading(false);
+      if (refreshQueued.current) {
+        refreshQueued.current = false;
+        window.setTimeout(() => void fetchAll({ silent: true }), 0);
+      }
     }
   };
 
   useEffect(() => {
-    fetchAll();
+    if (!token) return undefined;
+
+    void fetchAll();
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") void fetchAll({ silent: true });
+    };
+    const intervalId = window.setInterval(refreshIfVisible, 30_000);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+    };
   }, [token]);
 
   const handleUpdateTopic = guard(async (topicId, changes) => {
@@ -296,7 +371,7 @@ const PlannerPage = () => {
         throw new Error(planData.detail || "Topic updated, but the plan could not be refreshed.");
       }
       setSuccess("Topic updated and plan rescheduled.");
-      await fetchAll();
+      await fetchAll({ silent: true });
     } catch (err) {
       setError(err?.message || "Failed to update topic");
     }
@@ -343,7 +418,7 @@ const PlannerPage = () => {
 
       setSuccess("Study topic added and your plan generated.");
       setSelectedMaterial("");
-      await fetchAll();
+      await fetchAll({ silent: true });
     } catch (err) {
       setError(err?.message || "Failed to import material");
     } finally {
@@ -352,6 +427,9 @@ const PlannerPage = () => {
   }, "Import Material");
 
   const handleGenerate = guard(async () => {
+    setPlanAction("generate");
+    setError("");
+    setSuccess("");
     try {
       const response = await fetch(`${API_BASE_URL}/planner/generate`, {
         method: "POST",
@@ -364,13 +442,18 @@ const PlannerPage = () => {
       }
 
       setSuccess("Study plan generated successfully.");
-      await fetchAll();
+      await fetchAll({ silent: true });
     } catch (err) {
       setError(err?.message || "Failed to generate plan");
+    } finally {
+      setPlanAction(null);
     }
   }, "Generate Study Plan");
 
   const handleRegenerate = guard(async () => {
+    setPlanAction("regenerate");
+    setError("");
+    setSuccess("");
     try {
       const response = await fetch(`${API_BASE_URL}/planner/regenerate`, {
         method: "POST",
@@ -383,9 +466,11 @@ const PlannerPage = () => {
       }
 
       setSuccess("Plan regenerated successfully.");
-      await fetchAll();
+      await fetchAll({ silent: true });
     } catch (err) {
       setError(err?.message || "Failed to regenerate plan");
+    } finally {
+      setPlanAction(null);
     }
   }, "Regenerate Study Plan");
 
@@ -400,14 +485,16 @@ const PlannerPage = () => {
         throw new Error(data.detail || "Failed to mark topic complete");
       }
       setSuccess("Study topic marked as completed.");
-      await fetchAll();
+      await fetchAll({ silent: true });
     } catch (err) {
       setError(err?.message || "Failed to mark topic complete");
     }
   }, "Complete Study Topic");
 
   const handleRemoveTopic = guard(async (topicId) => {
-    if (!window.confirm("Remove this topic from your study planner?")) return;
+    setDeletingTopicId(topicId);
+    setError("");
+    setSuccess("");
     try {
       const response = await fetch(`${API_BASE_URL}/planner/topics/${topicId}`, {
         method: "DELETE",
@@ -417,19 +504,38 @@ const PlannerPage = () => {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.detail || "Failed to remove topic");
       }
+      setDeleteTarget(null);
       setSuccess("Topic removed from the planner.");
-      await fetchAll();
+      await fetchAll({ silent: true });
     } catch (err) {
       setError(err?.message || "Failed to remove topic");
+    } finally {
+      setDeletingTopicId(null);
     }
   }, "Remove Planner Topic");
 
-  const handleDeleteCourse = guard(async (course) => {
-    const confirmed = window.confirm(
-      `Delete ${course.course_code} (${course.course_title})? Its planner topics will be removed, but uploaded materials will be kept.`,
-    );
-    if (!confirmed) return;
+  const handleDeletePlan = guard(async () => {
+    setDeletingPlan(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/planner/active`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "Could not delete study plan");
+      setDeleteTarget(null);
+      setSuccess("The active study plan was deleted. Your courses and materials are unchanged.");
+      await fetchAll({ silent: true });
+    } catch (err) {
+      setError(err?.message || "Could not delete study plan");
+    } finally {
+      setDeletingPlan(false);
+    }
+  }, "Delete Study Plan");
 
+  const handleDeleteCourse = guard(async (course) => {
     setDeletingCourseId(course.id);
     setError("");
     setSuccess("");
@@ -440,12 +546,13 @@ const PlannerPage = () => {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || "Could not delete course");
+      setDeleteTarget(null);
       setSuccess(data.message || "Course deleted.");
       if (String(selectedCourse) === String(course.id)) {
         setSelectedCourse("");
         setSelectedMaterial("");
       }
-      await fetchAll();
+      await fetchAll({ silent: true });
     } catch (err) {
       setError(err?.message || "Could not delete course");
     } finally {
@@ -455,26 +562,87 @@ const PlannerPage = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={
+          deleteTarget?.type === "course"
+            ? "Delete course and plan topics?"
+            : deleteTarget?.type === "plan"
+              ? "Delete active study plan?"
+              : "Remove study topic?"
+        }
+        message={
+          deleteTarget?.type === "course"
+            ? `Permanently delete ${deleteTarget.course.course_code} · ${deleteTarget.course.course_title}, all materials uploaded under it, and its planner topics? This cannot be undone.`
+            : deleteTarget?.type === "plan"
+              ? "Delete the generated schedule? Your registered courses, uploaded materials, and study topics will remain and you can generate a new plan later."
+              : deleteTarget?.type === "topic"
+              ? `Remove “${deleteTarget.topic.title || deleteTarget.topic.topic}” and its planner progress? This will not delete the uploaded material.`
+              : ""
+        }
+        confirmLabel={
+          deletingCourseId || deletingTopicId || deletingPlan
+            ? "Deleting..."
+            : deleteTarget?.type === "course"
+              ? "Delete course and materials"
+              : deleteTarget?.type === "plan"
+                ? "Delete study plan"
+                : "Remove topic"
+        }
+        busy={Boolean(deletingCourseId || deletingTopicId || deletingPlan)}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.type === "course") {
+            handleDeleteCourse(deleteTarget.course);
+          } else if (deleteTarget?.type === "plan") {
+            handleDeletePlan();
+          } else if (deleteTarget?.type === "topic") {
+            handleRemoveTopic(deleteTarget.topic.id);
+          }
+        }}
+      />
       <PageHeader
         title="Adaptive Study Planner"
-        subtitle="Plan your revision and track progress"
-        showRefresh={true}
-        onRefresh={fetchAll}
-        actionLabel="Generate Plan"
-        onAction={handleGenerate}
+        subtitle="Plan revision, balance daily study time, and track progress"
       >
-        <button
-          onClick={handleRegenerate}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-gray-700 dark:text-blue-200 rounded-lg text-sm font-medium transition"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Regenerate
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={Boolean(loading || plan || planAction || savingTopic)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {planAction === "generate"
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Sparkles className="h-4 w-4" />}
+            {planAction === "generate" ? "Generating..." : "Generate"}
+          </button>
+          <button
+            type="button"
+            onClick={handleRegenerate}
+            disabled={!plan || Boolean(loading || planAction || savingTopic)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-blue-200 dark:hover:bg-gray-700"
+          >
+            {planAction === "regenerate"
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <RefreshCw className="h-4 w-4" />}
+            {planAction === "regenerate" ? "Regenerating..." : "Regenerate"}
+          </button>
+        </div>
       </PageHeader>
 
-      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        Add uploaded materials as study topics below. Course exam dates guide scheduling, while
-        quiz scores adjust priorities so weaker topics receive more study time.
+      <p className="mb-4 flex min-h-5 items-center justify-end gap-1.5 text-xs text-gray-500 dark:text-gray-400" role="status" aria-live="polite">
+        {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {refreshing
+          ? "Syncing planner..."
+          : lastUpdated
+            ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+            : ""}
+      </p>
+
+      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+        Add materials as study topics. Plans balance study time across days, schedule toward
+        course exam dates, and use your latest quiz scores to prioritize topics that need more review.
       </div>
 
       {error && (
@@ -494,7 +662,8 @@ const PlannerPage = () => {
         loading={loading}
         onUpdateTopic={handleUpdateTopic}
         onCompleteTopic={handleCompleteTopic}
-        onRemoveTopic={handleRemoveTopic}
+        onRemoveTopic={(topic) => setDeleteTarget({ type: "topic", topic })}
+        onDeletePlan={() => setDeleteTarget({ type: "plan" })}
       />
 
       {progress && (
@@ -651,7 +820,7 @@ const PlannerPage = () => {
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleDeleteCourse(course)}
+                      onClick={() => setDeleteTarget({ type: "course", course })}
                       disabled={deletingCourseId === course.id}
                       aria-label={`Delete ${course.course_code}`}
                       className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/30"

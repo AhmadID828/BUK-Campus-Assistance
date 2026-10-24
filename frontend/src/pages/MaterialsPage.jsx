@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useMaterialUpload } from "../context/MaterialUploadContext";
 import { API_BASE_URL } from "../config";
 import useApprovalGuard from "../hooks/useApprovalGuard";
+import ConfirmDialog from "../components/ConfirmDialog";
 import PageHeader from "../components/PageHeader";
 import LockedFeatureModal from "../components/LockedFeatureModal";
 import { BookOpen, CheckCircle, FileText, Plus, Search, Sparkles, Trash2, Upload, X } from "lucide-react";
@@ -34,6 +35,9 @@ const MaterialsPage = () => {
   const [examDate, setExamDate] = useState("");
   const [savingCourse, setSavingCourse] = useState(false);
   const [deletingCourseId, setDeletingCourseId] = useState(null);
+  const [courseToDelete, setCourseToDelete] = useState(null);
+  const [deletingMaterialId, setDeletingMaterialId] = useState(null);
+  const [materialToDelete, setMaterialToDelete] = useState(null);
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -143,11 +147,6 @@ const MaterialsPage = () => {
   }, "Course Registration");
 
   const handleDeleteCourse = guard(async (course) => {
-    const confirmed = window.confirm(
-      `Delete ${course.course_code} · ${course.course_title}?\n\nIts planner topics will be removed, but uploaded materials will be kept and no longer linked to this course.`,
-    );
-    if (!confirmed) return;
-
     setDeletingCourseId(course.id);
     setError("");
     setSuccess("");
@@ -162,8 +161,14 @@ const MaterialsPage = () => {
       setCourses((currentCourses) =>
         currentCourses.filter((registeredCourse) => registeredCourse.id !== course.id),
       );
+      setMaterials((currentMaterials) =>
+        currentMaterials.filter((material) => material.course_id !== course.id),
+      );
       if (courseId === String(course.id)) setCourseId("");
-      setSuccess(`${course.course_code} was removed from your registered courses.`);
+      setCourseToDelete(null);
+      setSuccess(
+        `${course.course_code} and ${data.deleted_material_count ?? 0} uploaded material(s) were deleted.`,
+      );
     } catch (deleteError) {
       setError(deleteError.message || "Failed to delete course");
     } finally {
@@ -172,7 +177,7 @@ const MaterialsPage = () => {
   }, "Delete Registered Course");
 
   const handleDeleteMaterial = guard(async (material) => {
-    if (!window.confirm(`Delete "${material.title}" permanently?`)) return;
+    setDeletingMaterialId(material.id);
     setError("");
     setSuccess("");
     try {
@@ -182,10 +187,15 @@ const MaterialsPage = () => {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || "Failed to delete material");
+      setMaterials((currentMaterials) =>
+        currentMaterials.filter((currentMaterial) => currentMaterial.id !== material.id),
+      );
+      setMaterialToDelete(null);
       setSuccess("Material deleted.");
-      await fetchMaterials();
     } catch (deleteError) {
       setError(deleteError.message || "Failed to delete material");
+    } finally {
+      setDeletingMaterialId(null);
     }
   }, "Delete Study Material");
 
@@ -234,6 +244,33 @@ const MaterialsPage = () => {
 
   return (
     <div>
+      <ConfirmDialog
+        open={Boolean(courseToDelete || materialToDelete)}
+        title={courseToDelete ? "Delete registered course?" : "Delete study material?"}
+        message={
+          courseToDelete
+            ? `Permanently delete ${courseToDelete.course_code} · ${courseToDelete.course_title}, all materials uploaded under it, and its planner topics? This cannot be undone.`
+            : materialToDelete
+              ? `Permanently delete “${materialToDelete.title}” and its related planner topics? This cannot be undone.`
+              : ""
+        }
+        confirmLabel={
+          deletingCourseId || deletingMaterialId
+            ? "Deleting..."
+            : courseToDelete
+              ? "Delete course and materials"
+              : "Delete material"
+        }
+        busy={Boolean(deletingCourseId || deletingMaterialId)}
+        onCancel={() => {
+          setCourseToDelete(null);
+          setMaterialToDelete(null);
+        }}
+        onConfirm={() => {
+          if (courseToDelete) handleDeleteCourse(courseToDelete);
+          else if (materialToDelete) handleDeleteMaterial(materialToDelete);
+        }}
+      />
       <PageHeader
         title="Study Materials"
         subtitle="Upload, manage and summarise your lecture notes"
@@ -368,11 +405,11 @@ const MaterialsPage = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDeleteCourse(course)}
-                    disabled={deletingCourseId === course.id}
+                    onClick={() => setCourseToDelete(course)}
+                    disabled={Boolean(deletingCourseId) || upload?.status === "uploading"}
                     aria-label={`Delete ${course.course_code} registered course`}
                     title={`Delete ${course.course_code}`}
-                    className="flex min-h-8 min-w-8 items-center justify-center border-l border-current/20 px-2 transition hover:bg-red-100 hover:text-red-700 disabled:cursor-wait disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-300"
+                    className="flex min-h-8 min-w-8 items-center justify-center border-l border-current/20 px-2 transition hover:bg-red-100 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950 dark:hover:text-red-300"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -534,7 +571,7 @@ const MaterialsPage = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleDeleteMaterial(material)}
+                onClick={() => setMaterialToDelete(material)}
                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30"
               >
                 <Trash2 className="h-4 w-4" />

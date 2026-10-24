@@ -5,6 +5,7 @@ export default function ConfirmDialog({
   title,
   message,
   confirmLabel = "Confirm",
+  busy = false,
   onCancel,
   onConfirm,
 }) {
@@ -20,19 +21,19 @@ export default function ConfirmDialog({
 
     cancelButtonRef.current?.focus();
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") onCancelRef.current();
+      if (event.key === "Escape" && !busy) onCancelRef.current();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
+  }, [open, busy]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"
+      className="fixed inset-0 z-[700] flex items-center justify-center bg-slate-950/60 p-4"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
+        if (!busy && event.target === event.currentTarget) onCancel();
       }}
     >
       <section
@@ -59,6 +60,7 @@ export default function ConfirmDialog({
             ref={cancelButtonRef}
             type="button"
             onClick={onCancel}
+            disabled={busy}
             className="min-h-11 rounded-xl border border-slate-200 px-4 font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             Cancel
@@ -66,7 +68,8 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800"
+            disabled={busy}
+            className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:focus-visible:ring-offset-slate-800"
           >
             {confirmLabel}
           </button>
