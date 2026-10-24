@@ -17,6 +17,22 @@ import { toast } from "react-hot-toast";
 import { API_BASE_URL } from "../config";
 import { useAuth } from "../context/AuthContext";
 
+function readableChatText(value) {
+  return String(value ?? "")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(?:p|div|li|h[1-6])\s*>/gi, "\n\n")
+    .replace(/<(?:p|div|li|h[1-6])(?:\s[^<>]*)?>/gi, "")
+    .replace(/<\/?[a-z][a-z0-9]*(?:\s[^<>]*)?\/?>/gi, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/\n[ \t]*\n(?:[ \t]*\n)+/g, "\n\n")
+    .trim();
+}
+
 export default function Chat() {
   const { token } = useAuth();
   const [messages, setMessages] = useState([
@@ -36,6 +52,8 @@ export default function Chat() {
   const [showSettings, setShowSettings] = useState(false);
   const bottomRef = useRef(null);
   const requestControllerRef = useRef(null);
+  const abortReasonRef = useRef(null);
+  const inputRef = useRef(null);
 
   const loadSessions = async () => {
     if (!token) return;
@@ -67,6 +85,7 @@ export default function Chat() {
   };
 
   const startNewChat = () => {
+    abortReasonRef.current = "cancelled";
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
     setLoading(false);
@@ -81,6 +100,7 @@ export default function Chat() {
   };
 
   const stopGenerating = () => {
+    abortReasonRef.current = "stopped";
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
     setLoading(false);
@@ -98,10 +118,15 @@ export default function Chat() {
     const userMsg = { role: "user", content: input.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "48px";
     setLoading(true);
     const controller = new AbortController();
     requestControllerRef.current = controller;
-    const timeout = window.setTimeout(() => controller.abort(), 300000);
+    abortReasonRef.current = null;
+    const timeout = window.setTimeout(() => {
+      abortReasonRef.current = "timeout";
+      controller.abort();
+    }, 300000);
 
     try {
       const response = await fetch(`${API_BASE_URL}/chat/ask`, {
@@ -120,8 +145,10 @@ export default function Chat() {
         }),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Failed to get response");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || `Failed to get response (${response.status})`);
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -134,7 +161,17 @@ export default function Chat() {
       setSessionId(data.session_id);
       await loadSessions();
     } catch (chatError) {
-      if (chatError.name === "AbortError") return;
+      if (chatError.name === "AbortError") {
+        if (abortReasonRef.current === "timeout") {
+          const errorMessage = "That question took too long to answer. Please try again.";
+          toast.error(errorMessage);
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: errorMessage },
+          ]);
+        }
+        return;
+      }
       const errorMessage = chatError.message || "Failed to get response";
       toast.error(errorMessage);
       setMessages((prev) => [
@@ -317,7 +354,9 @@ export default function Chat() {
                   : "border border-blue-100 bg-white text-slate-700 rounded-bl-md shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               }`}
             >
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              <p className="whitespace-pre-wrap">
+                {msg.role === "assistant" ? readableChatText(msg.content) : msg.content}
+              </p>
 
               {/* Sources */}
               {msg.sources && msg.sources.length > 0 && (
@@ -375,12 +414,24 @@ export default function Chat() {
 
       {/* Input */}
       <form onSubmit={sendMessage} className="relative shrink-0 pb-2 sm:pb-0">
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
+          rows={1}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(event) => {
+            setInput(event.target.value);
+            event.target.style.height = "auto";
+            event.target.style.height = `${Math.min(event.target.scrollHeight, 128)}px`;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder="Ask your study or campus question..."
-          className="min-h-12 w-full rounded-2xl border border-blue-200 bg-white py-3 pl-3 pr-14 text-base text-slate-900 outline-none shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:ring-blue-900 sm:pl-5 sm:py-4"
+          aria-label="Ask your study or campus question"
+          className="max-h-32 min-h-12 w-full resize-none overflow-y-auto rounded-2xl border border-blue-200 bg-white py-3 pl-3 pr-14 text-base leading-6 text-slate-900 outline-none shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:ring-blue-900 sm:pl-5"
         />
         {loading ? (
           <button

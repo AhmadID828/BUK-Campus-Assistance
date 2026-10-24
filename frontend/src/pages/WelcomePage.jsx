@@ -91,7 +91,7 @@ function CampusCarousel() {
     if (paused) return undefined;
     const timer = window.setInterval(() => {
       setActiveIndex((index) => (index + 1) % slideCount);
-    }, 1300);
+    }, 2000);
     return () => window.clearInterval(timer);
   }, [paused, slideCount]);
 

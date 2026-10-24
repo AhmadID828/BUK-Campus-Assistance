@@ -66,10 +66,11 @@ preference is saved in the browser; System follows the device's current
 appearance setting.
 
 Study chat uses the semantic index when the configured embedding provider is
-available. If semantic indexing fails after an upload, the saved material is
-still searchable through PostgreSQL full-text search; the upload notice reports
-this fallback and administrators should check the backend embedding-provider
-configuration to restore semantic search.
+available. If semantic indexing or its stored full-text index fails after an
+upload, the saved material remains available through on-demand PostgreSQL
+full-text search; the upload notice reports that it is ready for AI study chat.
+Administrators can check the backend embedding-provider configuration to
+restore semantic indexing.
 
 ## Deployment
 

@@ -93,9 +93,18 @@ def answer_academic_question(
     index_unavailable = any(
         source.get("title") == "AI indexing unavailable" for source in sources
     )
-    if db is not None and (not sources or index_unavailable):
+    if db is not None and db.get_bind().dialect.name == "postgresql":
         ts_query = func.plainto_tsquery("english", question)
-        rank = func.ts_rank(StudyMaterial.search_vector, ts_query)
+        search_vector = (
+            func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.title, "")), "A")
+            .op("||")(
+                func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.subject, "")), "B")
+            )
+            .op("||")(
+                func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.content, "")), "C")
+            )
+        )
+        rank = func.ts_rank(search_vector, ts_query)
         headline = func.ts_headline(
             "english",
             StudyMaterial.content,
@@ -103,23 +112,29 @@ def answer_academic_question(
             "MaxWords=80, MinWords=25",
         )
         rows = (
-            db.query(StudyMaterial, rank, headline)
+            db.query(StudyMaterial.id, StudyMaterial.title, StudyMaterial.subject, StudyMaterial.content, rank, headline)
             .filter(
                 StudyMaterial.owner_id == user.id,
-                StudyMaterial.search_vector.op("@@")(ts_query),
+                search_vector.op("@@")(ts_query),
             )
             .order_by(rank.desc(), StudyMaterial.id.desc())
             .limit(3)
             .all()
         )
         if rows:
-            context_parts = []
-            sources = []
-            for material, _, excerpt in rows:
-                title = material.title or "Untitled material"
-                subject = material.subject or ""
+            context_parts = [context] if sources else []
+            existing_sources = {
+                (source.get("title"), source.get("subject"))
+                for source in sources
+            }
+            for material_id, material_title, material_subject, material_content, _, excerpt in rows:
+                del material_id
+                title = material_title or "Untitled material"
+                subject = material_subject or ""
+                if (title, subject) in existing_sources:
+                    continue
                 label = f"{title} ({subject})" if subject else title
-                excerpt_text = str(excerpt or material.content or "").strip()
+                excerpt_text = str(excerpt or material_content or "").strip()
                 context_parts.append(f"From: {label}\n{excerpt_text}")
                 sources.append(
                     {
@@ -129,7 +144,9 @@ def answer_academic_question(
                         "excerpt": excerpt_text[:320],
                     }
                 )
-            context = "\n\n".join(context_parts)
+                existing_sources.add((title, subject))
+            if context_parts:
+                context = "\n\n".join(context_parts)
         elif index_unavailable:
             context = "No relevant study materials found."
             sources = []

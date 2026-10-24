@@ -7,7 +7,7 @@ import { API_BASE_URL } from "../config";
 import useApprovalGuard from "../hooks/useApprovalGuard";
 import PageHeader from "../components/PageHeader";
 import LockedFeatureModal from "../components/LockedFeatureModal";
-import { BookOpen, FileText, Plus, Search, Sparkles, Trash2, Upload } from "lucide-react";
+import { BookOpen, CheckCircle, FileText, Plus, Search, Sparkles, Trash2, Upload, X } from "lucide-react";
 
 const MaterialsPage = () => {
   const { token } = useAuth();
@@ -23,6 +23,7 @@ const MaterialsPage = () => {
   const [warning, setWarning] = useState("");
   const [search, setSearch] = useState("");
   const [summarizingId, setSummarizingId] = useState(null);
+  const [summaryResult, setSummaryResult] = useState(null);
   const [summaryProvider, setSummaryProvider] = useState("groq");
   const [file, setFile] = useState(null);
   const [fileInputKey, setFileInputKey] = useState(0);
@@ -178,7 +179,10 @@ const MaterialsPage = () => {
       }
 
       const data = await response.json();
-      setSuccess(data.summary || "Summary generated successfully");
+      setSummaryResult({
+        title: data.title || materials.find((material) => material.id === materialId)?.title || "Study material",
+        summary: data.summary || "",
+      });
     } catch (summarizeError) {
       setError(
         summarizeError.message ||
@@ -206,6 +210,60 @@ const MaterialsPage = () => {
         showRefresh={true}
         onRefresh={fetchMaterials}
       />
+
+      {summaryResult && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSummaryResult(null);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="material-summary-title"
+            className="max-h-[85dvh] w-full max-w-2xl overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-blue-100 px-5 py-4 dark:border-slate-700 sm:px-6">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="rounded-xl bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  <CheckCircle className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h2 id="material-summary-title" className="text-lg font-bold text-slate-900 dark:text-white">
+                    Summary ready
+                  </h2>
+                  <p className="mt-0.5 truncate text-sm text-slate-500 dark:text-slate-400">
+                    {summaryResult.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSummaryResult(null)}
+                aria-label="Close summary"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <div className="max-h-[calc(85dvh-8rem)] overflow-y-auto px-5 py-5 sm:px-6">
+              <div className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 dark:text-slate-200 sm:text-base">
+                {summaryResult.summary}
+              </div>
+            </div>
+            <div className="border-t border-blue-100 bg-slate-50 px-5 py-3 text-right dark:border-slate-700 dark:bg-slate-950/40 sm:px-6">
+              <button
+                type="button"
+                onClick={() => setSummaryResult(null)}
+                className="min-h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Done
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <section className="mb-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm dark:border-gray-700 dark:from-gray-800 dark:to-gray-800">
         <div className="mb-4 flex items-center gap-3">

@@ -107,14 +107,17 @@ def upload_material(
     db.add(material)
     db.commit()
     db.refresh(material)
+    material_id = material.id
+    material_title = material.title
+    material_subject = material.subject
 
     rag_indexed = True
     indexing_warning = None
     try:
         rag_service.add_material(
             user_id=user.id, # type: ignore
-            material_id=material.id, # type: ignore
-            title=material.title, # type: ignore
+            material_id=material_id, # type: ignore
+            title=material_title, # type: ignore
             content=extracted_text,
             subject=course.course_code, # type: ignore
         )
@@ -126,24 +129,38 @@ def upload_material(
         )
         logger.exception(
             "RAG indexing failed for uploaded material %s owned by user %s",
-            material.id,
+            material_id,
             user.id,
         )
         logger.warning("RAG indexing failure context: %s", exc)
 
-    update_search_vector(db, material.id) # type: ignore
+    full_text_indexed = True
+    try:
+        update_search_vector(db, material_id) # type: ignore
+    except Exception:
+        db.rollback()
+        full_text_indexed = False
+        indexing_warning = (
+            f"{indexing_warning + ' ' if indexing_warning else ''}"
+            "The saved material remains available to AI study chat through "
+            "on-demand full-text search; its database search index could not be refreshed."
+        )
+        logger.exception(
+            "Full-text index refresh failed for uploaded material %s",
+            material_id,
+        )
 
     return {
         "message": "File uploaded successfully",
-        "material_id": material.id,
-        "title": material.title,
-        "subject": material.subject,
+        "material_id": material_id,
+        "title": material_title,
+        "subject": material_subject,
         "course_id": course.id,
         "course_code": course.course_code,
         "course_title": course.course_title,
         "owner": user.full_name,
         "rag_indexed": rag_indexed,
-        "full_text_indexed": True,
+        "full_text_indexed": full_text_indexed,
         "indexing_warning": indexing_warning,
     }
 
@@ -251,14 +268,20 @@ async def get_materials(
     if search:
         terms = " & ".join(search.strip().split())
         ts_query = func.to_tsquery("english", terms)
-        rank = func.ts_rank(
-            StudyMaterial.search_vector,
-            ts_query,
-        ).label("rank")
+        search_vector = (
+            func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.title, "")), "A")
+            .op("||")(
+                func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.subject, "")), "B")
+            )
+            .op("||")(
+                func.setweight(func.to_tsvector("english", func.coalesce(StudyMaterial.content, "")), "C")
+            )
+        )
+        rank = func.ts_rank(search_vector, ts_query).label("rank")
 
         query = (
             query.add_columns(rank)
-            .filter(StudyMaterial.search_vector.op("@@")(ts_query))
+            .filter(search_vector.op("@@")(ts_query))
             .order_by(rank.desc(), StudyMaterial.id.desc())
         )
     else:

@@ -1,5 +1,6 @@
-import os
+import html
 import json
+import os
 import re
 from typing import Any
 
@@ -154,6 +155,29 @@ def extract_final_answer(content: str) -> str:
     return cleaned
 
 
+def clean_chat_response(content: str) -> str:
+    """Render occasional HTML-like model output as readable plain text."""
+    cleaned = re.sub(
+        r"(?i)<br\s*/?\s*>",
+        "\n",
+        content,
+    )
+    cleaned = re.sub(
+        r"(?i)</(?:p|div|li|h[1-6])\s*>",
+        "\n\n",
+        cleaned,
+    )
+    cleaned = re.sub(
+        r"(?i)<(?:p|div|li|h[1-6])(?:\s[^<>]*)?>",
+        "",
+        cleaned,
+    )
+    cleaned = re.sub(r"</?[a-z][a-z0-9]*(?:\s[^<>]*)?/?>", "", cleaned)
+    cleaned = html.unescape(cleaned)
+    cleaned = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", cleaned)
+    return cleaned.strip()
+
+
 def generate_answer(
     prompt: str,
     max_tokens: int = 160,
@@ -282,6 +306,9 @@ class LLMService:
             answer = response_data["answer"]
         if not isinstance(answer, str) or not answer.strip():
             raise RuntimeError("AI provider returned an empty chat answer")
+        answer = clean_chat_response(answer)
+        if not answer:
+            raise RuntimeError("AI provider returned no readable chat answer")
 
         self.conversations[user_id] = [*history, current_message, {
             "role": "assistant",

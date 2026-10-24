@@ -12,7 +12,7 @@ import httpx
 from fastapi import HTTPException, UploadFile
 from pydantic import ValidationError
 
-from app.ai.llm_service import LLMService, _post_json, generate_answer
+from app.ai.llm_service import LLMService, _post_json, clean_chat_response, generate_answer
 from app.ai.campus_qa import answer_campus_question
 from app.ai.rag_service import RAGService
 from app.models.faq import FAQ
@@ -180,6 +180,20 @@ class PasswordStrengthTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIn("at least 8 characters", raised.exception.detail)
+
+
+class ChatResponseFormattingTests(unittest.TestCase):
+    def test_html_like_line_breaks_are_rendered_as_plain_text(self):
+        self.assertEqual(
+            clean_chat_response("First point<br>Second point</br>"),
+            "First point\nSecond point",
+        )
+
+    def test_markup_and_entities_are_cleaned_without_losing_text(self):
+        self.assertEqual(
+            clean_chat_response("<p>Use &lt; and &gt; carefully.</p><p>Next</p>"),
+            "Use < and > carefully.\n\nNext",
+        )
 
 
 class ProfileUpdateTests(unittest.TestCase):

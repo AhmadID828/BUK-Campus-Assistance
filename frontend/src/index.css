@@ -61,6 +61,11 @@ select {
   accent-color: var(--primary);
 }
 
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
 ::selection {
   color: #1e3a8a;
   background: #bfdbfe;
