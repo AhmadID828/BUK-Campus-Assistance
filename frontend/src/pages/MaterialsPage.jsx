@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useMaterialUpload } from "../context/MaterialUploadContext";
 import { API_BASE_URL } from "../config";
@@ -38,6 +38,8 @@ const MaterialsPage = () => {
   const [courseToDelete, setCourseToDelete] = useState(null);
   const [deletingMaterialId, setDeletingMaterialId] = useState(null);
   const [materialToDelete, setMaterialToDelete] = useState(null);
+  const fetchingRef = useRef(false);
+  const fetchQueuedRef = useRef(false);
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -52,10 +54,18 @@ const MaterialsPage = () => {
     setFile(selectedFile);
   };
 
-  const fetchMaterials = async () => {
-    setLoading(true);
-    setError("");
+  const fetchMaterials = async ({ silent = false } = {}) => {
+    if (!token) return;
+    if (fetchingRef.current) {
+      fetchQueuedRef.current = true;
+      return;
+    }
 
+    fetchingRef.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/materials/?limit=50`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -76,15 +86,34 @@ const MaterialsPage = () => {
         throw new Error(coursesData.detail || "Failed to load registered courses");
       }
       setCourses(coursesData.courses ?? []);
+      setError("");
     } catch (fetchError) {
       setError(fetchError.message);
     } finally {
-      setLoading(false);
+      fetchingRef.current = false;
+      if (!silent) setLoading(false);
+      if (fetchQueuedRef.current) {
+        fetchQueuedRef.current = false;
+        window.setTimeout(() => void fetchMaterials({ silent: true }), 0);
+      }
     }
   };
 
   useEffect(() => {
-    fetchMaterials();
+    void fetchMaterials();
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") {
+        void fetchMaterials({ silent: true });
+      }
+    };
+    const intervalId = window.setInterval(refreshIfVisible, 15_000);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+    };
   }, [token, uploadRevision]);
 
   const handleUpload = guard((event) => {

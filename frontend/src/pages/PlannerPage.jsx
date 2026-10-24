@@ -9,7 +9,7 @@ import PageHeader from "../components/PageHeader";
 import LockedFeatureModal from "../components/LockedFeatureModal";
 import {
   Calendar,
-  RefreshCw,
+  CalendarClock,
   CheckCircle2,
   Loader2,
   Sparkles,
@@ -239,8 +239,6 @@ const PlannerPage = () => {
   const [progress, setProgress] = useState(null);
   const [reminders, setReminders] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -267,8 +265,7 @@ const PlannerPage = () => {
     }
 
     refreshInFlight.current = true;
-    if (silent) setRefreshing(true);
-    else {
+    if (!silent) {
       setLoading(true);
       setError("");
     }
@@ -315,14 +312,12 @@ const PlannerPage = () => {
       setReminders(await reminderRes.json());
       setCourses((await coursesRes.json()).courses || []);
       setMaterials((await materialsRes.json()).materials || []);
-      setLastUpdated(new Date());
       setError("");
     } catch (err) {
-      setError(err?.message || "Failed to load planner data");
+      if (!silent) setError(err?.message || "Failed to load planner data");
     } finally {
       refreshInFlight.current = false;
-      if (silent) setRefreshing(false);
-      else setLoading(false);
+      if (!silent) setLoading(false);
       if (refreshQueued.current) {
         refreshQueued.current = false;
         window.setTimeout(() => void fetchAll({ silent: true }), 0);
@@ -337,7 +332,7 @@ const PlannerPage = () => {
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") void fetchAll({ silent: true });
     };
-    const intervalId = window.setInterval(refreshIfVisible, 30_000);
+    const intervalId = window.setInterval(refreshIfVisible, 15_000);
     window.addEventListener("focus", refreshIfVisible);
     document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
@@ -625,20 +620,11 @@ const PlannerPage = () => {
           >
             {planAction === "regenerate"
               ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <RefreshCw className="h-4 w-4" />}
+              : <CalendarClock className="h-4 w-4" />}
             {planAction === "regenerate" ? "Regenerating..." : "Regenerate"}
           </button>
         </div>
       </PageHeader>
-
-      <p className="mb-4 flex min-h-5 items-center justify-end gap-1.5 text-xs text-gray-500 dark:text-gray-400" role="status" aria-live="polite">
-        {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-        {refreshing
-          ? "Syncing planner..."
-          : lastUpdated
-            ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-            : ""}
-      </p>
 
       <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
         Add materials as study topics. Plans balance study time across days, schedule toward
