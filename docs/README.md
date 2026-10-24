@@ -76,15 +76,36 @@ restore semantic indexing.
 
 Deploy the `frontend` directory to Vercel and the `backend` directory to a
 Python host such as Render. Configure the frontend API URL, database, allowed
-frontend origins, mail (`MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, and
-optional `MAIL_SERVER`/`MAIL_PORT`), `FRONTEND_URL`, and AI providers in the
-hosting dashboards. `FRONTEND_URL` must be the public frontend address so
-approval and password-reset email links return to the deployed app. The backend
-start command is `uvicorn main:app --host 0.0.0.0 --port $PORT`. Password-reset
-emails are queued after the API responds so SMTP delays do not keep the reset
-page waiting; check the Render web-service logs for delivery failures. A
-successful reset-request response means the request was queued, not that the
-email provider confirmed delivery.
+frontend origins, email, `FRONTEND_URL`, and AI providers in the hosting
+dashboards. For email, configure `RESEND_API_KEY` and `MAIL_FROM` (or
+`RESEND_FROM_EMAIL`) on the Render backend service only. Resend is preferred
+automatically when its API key is configured. Verify your sender domain in
+Resend before using an address such as
+`BUK Campus Assistant <noreply@your-verified-domain>`. The Resend test sender
+`onboarding@resend.dev` is limited to Resend's test-recipient rules and is not
+the production sender for arbitrary student addresses.
+
+For optional Gmail fallback, also configure `MAIL_USERNAME`,
+`MAIL_PASSWORD` (a Gmail App Password), and optionally `MAIL_FROM_GMAIL`.
+Resend is attempted first; if it fails, the backend attempts Gmail when these
+SMTP settings are present. For SMTP-only mode, set `EMAIL_PROVIDER=smtp`.
+Never put the Resend API key in Vercel or a `VITE_` frontend variable. The
+backend calls Resend's HTTPS API through the existing `httpx` dependency; the
+Resend Python SDK is not required.
+
+For local email testing, place `RESEND_API_KEY`, `MAIL_FROM` (or
+`RESEND_FROM_EMAIL`), and optional Gmail fallback credentials in
+`backend/.env`, then restart the backend. Leave `RESET_EMAIL_MODE` unset (or
+set it to `smtp`) to send email. `APP_ENV=development` together with
+`RESET_EMAIL_MODE=console` enables the loopback-only local reset-link display
+instead of sending an email.
+
+`FRONTEND_URL` must be the public frontend address so approval and password
+reset links return to the deployed app. The backend start command is
+`uvicorn main:app --host 0.0.0.0 --port $PORT`. Password-reset emails are
+queued after the API responds; a successful reset-request response means the
+request was queued, not that the provider confirmed delivery. Check the Render
+web-service logs and the Resend email logs for delivery failures or bounces.
 
 Use separate local and hosted databases and credentials. Hosted services
 cannot use an Ollama instance running on a developer's computer; configure an

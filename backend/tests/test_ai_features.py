@@ -22,7 +22,7 @@ from app.routers import admin, auth, chat, emergency, events, faqs, materials, p
 from app.schemas.user import AdminCreate, AdminStudentUpdate, UserCreate, UserLogin
 from app.utils.auth import password_validation_errors
 from app.utils.dependencies import get_current_user, get_super_admin
-from app.utils.email import send_approval_email
+from app.utils.email import send_approval_email, send_email
 
 
 class FakeQuery:
@@ -227,6 +227,112 @@ class ProfileUpdateTests(unittest.TestCase):
 
 
 class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
+    async def test_resend_email_uses_https_api_and_configured_sender(self):
+        response = httpx.Response(
+            200,
+            json={"id": "email-id"},
+            request=httpx.Request("POST", "https://api.resend.com/emails"),
+        )
+        client = MagicMock()
+        client.post = AsyncMock(return_value=response)
+        client_context = MagicMock()
+        client_context.__aenter__ = AsyncMock(return_value=client)
+        client_context.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.dict(
+            "os.environ",
+            {
+                "EMAIL_PROVIDER": "resend",
+                "RESEND_API_KEY": "test-api-key",
+                "RESEND_FROM_EMAIL": "BUK Assistant <noreply@example.test>",
+            },
+            clear=True,
+        ), patch("app.utils.email.httpx.AsyncClient", return_value=client_context) as client_factory:
+            await send_email(
+                "student@example.test",
+                "Reset your password",
+                "<p>Reset link</p>",
+            )
+
+        client_factory.assert_called_once()
+        self.assertEqual(client.post.call_args.args[0], "https://api.resend.com/emails")
+        self.assertEqual(
+            client.post.call_args.kwargs["headers"]["Authorization"],
+            "Bearer test-api-key",
+        )
+        self.assertEqual(
+            client.post.call_args.kwargs["json"],
+            {
+                "from": "BUK Assistant <noreply@example.test>",
+                "to": ["student@example.test"],
+                "subject": "Reset your password",
+                "html": "<p>Reset link</p>",
+            },
+        )
+
+    async def test_resend_rejection_surfaces_provider_error_without_credentials(self):
+        response = httpx.Response(
+            403,
+            json={"message": "Sender domain is not verified"},
+            request=httpx.Request("POST", "https://api.resend.com/emails"),
+        )
+        client = MagicMock()
+        client.post = AsyncMock(return_value=response)
+        client_context = MagicMock()
+        client_context.__aenter__ = AsyncMock(return_value=client)
+        client_context.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.dict(
+            "os.environ",
+            {
+                "EMAIL_PROVIDER": "resend",
+                "RESEND_API_KEY": "test-api-key",
+                "RESEND_FROM_EMAIL": "noreply@example.test",
+            },
+            clear=True,
+        ), patch("app.utils.email.httpx.AsyncClient", return_value=client_context), patch(
+            "app.utils.email.fast_mail", None
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Sender domain is not verified"):
+                await send_email(
+                    "student@example.test",
+                    "Reset your password",
+                    "<p>Reset link</p>",
+                )
+
+    async def test_resend_failure_falls_back_to_configured_gmail(self):
+        response = httpx.Response(
+            403,
+            json={"message": "Sender domain is not verified"},
+            request=httpx.Request("POST", "https://api.resend.com/emails"),
+        )
+        client = MagicMock()
+        client.post = AsyncMock(return_value=response)
+        client_context = MagicMock()
+        client_context.__aenter__ = AsyncMock(return_value=client)
+        client_context.__aexit__ = AsyncMock(return_value=None)
+        smtp_client = MagicMock()
+        smtp_client.send_message = AsyncMock()
+
+        with patch.dict(
+            "os.environ",
+            {
+                "EMAIL_PROVIDER": "resend",
+                "RESEND_API_KEY": "test-api-key",
+                "RESEND_FROM_EMAIL": "noreply@example.test",
+            },
+            clear=True,
+        ), patch("app.utils.email.httpx.AsyncClient", return_value=client_context), patch(
+            "app.utils.email.fast_mail", smtp_client
+        ):
+            await send_email(
+                "student@example.test",
+                "Reset your password",
+                "<p>Reset link</p>",
+            )
+
+        smtp_client.send_message.assert_awaited_once()
+
     async def test_reset_email_retries_once_after_smtp_connection_timeout(self):
         with patch(
             "app.routers.auth.send_reset_email",
