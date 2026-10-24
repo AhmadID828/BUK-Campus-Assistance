@@ -22,6 +22,7 @@ def build_plan_items(topics: list[StudyTopic], start_date: date) -> list[dict]:
     for topic in topics:
         grouped_topics.setdefault(topic.course_id, []).append(topic)
 
+    scheduled_hours: dict[date, float] = {}
     items = []
     for topic in topics:
         course_topics = grouped_topics[topic.course_id]
@@ -36,13 +37,26 @@ def build_plan_items(topics: list[StudyTopic], start_date: date) -> list[dict]:
         else:
             day_offset = topic_index
 
+        proposed_date = start_date + timedelta(days=max(day_offset, 0))
+        study_hours = max(float(topic.estimated_hours or 2), 0.5)
+        deadline = exam_date if exam_date and exam_date >= start_date else None
+        while (
+            scheduled_hours.get(proposed_date, 0) > 0
+            and scheduled_hours.get(proposed_date, 0) + study_hours > 6
+            and (deadline is None or proposed_date < deadline)
+        ):
+            proposed_date += timedelta(days=1)
+        scheduled_hours[proposed_date] = (
+            scheduled_hours.get(proposed_date, 0) + study_hours
+        )
+
         items.append({
             "topic_id": topic.id,
             "material_id": topic.material_id,
-            "date": str(start_date + timedelta(days=max(day_offset, 0))),
+            "date": str(proposed_date),
             "course": topic.course.course_code if topic.course else "General",
             "topic": topic.title,
-            "hours": topic.estimated_hours,
+            "hours": study_hours,
             "priority": topic.priority,
         })
     return items
@@ -121,6 +135,61 @@ async def add_course(
     db.refresh(course)
 
     return {"message": "Course added successfully", "course_id": course.id}
+
+
+@router.delete("/courses/{course_id}")
+async def delete_course(
+    course_id: int,
+    user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
+):
+    course = db.query(Course).filter(
+        Course.id == course_id,
+        Course.user_id == user.id,
+    ).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    topic_ids = [topic.id for topic in course.topics]
+    for plan in db.query(StudyPlan).filter(
+        StudyPlan.user_id == user.id,
+        StudyPlan.is_active.is_(True),
+    ).all():
+        plan_items = json.loads(plan.plan_data or "[]")
+        plan_items = [
+            item for item in plan_items
+            if item.get("topic_id") not in topic_ids
+        ]
+        if plan_items:
+            plan.plan_data = json.dumps(plan_items)
+            plan.start_date = min(
+                date.fromisoformat(item["date"]) for item in plan_items
+            )
+            plan.end_date = max(
+                date.fromisoformat(item["date"]) for item in plan_items
+            )
+        else:
+            plan.is_active = False
+
+    if topic_ids:
+        db.query(StudyTopic).filter(StudyTopic.id.in_(topic_ids)).delete(
+            synchronize_session=False
+        )
+        db.expire(course, ["topics"])
+    db.query(StudyMaterial).filter(
+        StudyMaterial.course_id == course.id,
+        StudyMaterial.owner_id == user.id,
+    ).update(
+        {StudyMaterial.course_id: None},
+        synchronize_session=False,
+    )
+    db.delete(course)
+    db.commit()
+    return {
+        "message": "Course deleted. Its uploaded materials were kept, but its planner topics were removed.",
+        "course_id": course_id,
+    }
+
 
 @router.post("/materials/{material_id}/import")
 async def import_material(

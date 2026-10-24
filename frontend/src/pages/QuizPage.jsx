@@ -481,11 +481,11 @@ const QuizPage = () => {
         <div>
           <h2 className="font-semibold text-gray-800 dark:text-white">Your quizzes</h2>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            New quizzes appear here and are ready to take.
+            Quizzes disappear from this list after you finish them. Past attempts stay below.
           </p>
         </div>
         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
-          {savedQuizzes.length} total
+          {savedQuizzes.length} available
         </span>
       </div>
       {loading ? (

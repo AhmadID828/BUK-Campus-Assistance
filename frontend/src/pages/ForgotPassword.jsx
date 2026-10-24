@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { API_BASE_URL } from "../config";
@@ -9,6 +9,16 @@ export default function ForgotPassword() {
   const [developmentResetLink, setDevelopmentResetLink] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return undefined;
+    const timer = window.setTimeout(
+      () => setCooldownSeconds((seconds) => Math.max(0, seconds - 1)),
+      1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [cooldownSeconds]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -26,6 +36,7 @@ export default function ForgotPassword() {
       if (!response.ok) throw new Error(data.detail || "Unable to send reset email");
       setMessage(data.message);
       setDevelopmentResetLink(data.development_reset_link || "");
+      if (!data.development_reset_link) setCooldownSeconds(120);
     } catch (requestError) {
       setError(requestError.message || "Unable to send reset email");
     } finally {
@@ -83,16 +94,24 @@ export default function ForgotPassword() {
               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
             />
             <button
-              disabled={loading}
+              disabled={loading || cooldownSeconds > 0}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-medium text-white hover:bg-blue-700 disabled:opacity-70"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : "Send reset link"}
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  Preparing reset link…
+                </>
+              ) : cooldownSeconds > 0 ? (
+                `Request sent · try again in ${cooldownSeconds}s`
+              ) : (
+                "Send reset link"
+              )}
             </button>
           </form>
           <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
-            In local development, enable the backend's local reset mode to
-            display a test link here. Outside local development, check your
-            spam folder or ask the administrator to check email configuration.
+            Check your inbox and spam folder, and wait before requesting another link. 
+            contact Administrators support if you don't receive an email within a few minutes.
           </p>
           <Link to="/login" className="mt-5 block text-center text-sm text-blue-600 hover:underline dark:text-blue-300">
             Back to login

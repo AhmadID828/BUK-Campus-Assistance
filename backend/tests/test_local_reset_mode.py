@@ -4,6 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from fastapi import BackgroundTasks
 from jose import jwt
 
 from app.routers.auth import ForgotPasswordRequest, forgot_password
@@ -94,6 +95,7 @@ class LocalResetModeTests(unittest.TestCase):
             result = asyncio.run(
                 forgot_password(
                     ForgotPasswordRequest(email="student@example.com"),
+                    BackgroundTasks(),
                     request,
                     FakeDatabase(user),
                 )
@@ -126,6 +128,7 @@ class LocalResetModeTests(unittest.TestCase):
             result = asyncio.run(
                 forgot_password(
                     ForgotPasswordRequest(email="unknown@example.com"),
+                    BackgroundTasks(),
                     request,
                     FakeDatabase(None),
                 )

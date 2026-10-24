@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-from fastapi import HTTPException, UploadFile
+from fastapi import BackgroundTasks, HTTPException, UploadFile
 from pydantic import ValidationError
 
 from app.ai.llm_service import LLMService, _post_json, clean_chat_response, generate_answer
@@ -227,6 +227,22 @@ class ProfileUpdateTests(unittest.TestCase):
 
 
 class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reset_email_retries_once_after_smtp_connection_timeout(self):
+        with patch(
+            "app.routers.auth.send_reset_email",
+            new_callable=AsyncMock,
+            side_effect=[
+                RuntimeError("Timed out connecting to smtp.gmail.com on port 587"),
+                None,
+            ],
+        ) as send_email, patch("app.routers.auth.asyncio.sleep", new_callable=AsyncMock):
+            await auth.send_reset_email_in_background(
+                "student@example.test",
+                "https://study.example.test/reset-password?token=opaque",
+            )
+
+        self.assertEqual(send_email.await_count, 2)
+
     def test_admin_student_update_accepts_supported_level(self):
         payload = AdminStudentUpdate(
             full_name="Student Name",
@@ -474,14 +490,19 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         ), patch(
             "app.routers.auth.send_reset_email", new_callable=AsyncMock
         ) as send_email:
+            background_tasks = BackgroundTasks()
             result = await auth.forgot_password(
                 auth.ForgotPasswordRequest(email="student@example.com"),
+                background_tasks=background_tasks,
+                http_request=SimpleNamespace(client=None),
                 db=db, #type:ignore
             )
+            send_email.assert_not_awaited()
+            await background_tasks()
 
         self.assertIn("lower(users.email)", str(query.condition).lower())
         self.assertIn("https://study.example.test/reset-password?token=", send_email.call_args.args[1])
-        self.assertIn("password reset link has been sent", result["message"])
+        self.assertIn("will arrive shortly", result["message"])
 
 
 class CampusFAQChatTests(unittest.TestCase):
@@ -535,6 +556,62 @@ class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
             ["2026-10-22", "2026-10-23", "2026-10-24"],
         )
 
+    def test_plan_limits_combined_daily_study_time_to_six_hours(self):
+        courses = [
+            SimpleNamespace(exam_date=None, course_code=f"CS{index}")
+            for index in range(3)
+        ]
+        topics = [
+            SimpleNamespace(
+                id=index,
+                course_id=index,
+                material_id=None,
+                course=courses[index - 1],
+                title=f"Topic {index}",
+                estimated_hours=3,
+                priority=2,
+            )
+            for index in range(1, 4)
+        ]
+
+        items = planner.build_plan_items(topics, date(2026, 10, 22))
+
+        hours_by_date = {}
+        for item in items:
+            hours_by_date[item["date"]] = hours_by_date.get(item["date"], 0) + item["hours"]
+        self.assertLessEqual(max(hours_by_date.values()), 6)
+
+    def test_plan_schedules_long_topics_without_exceeding_the_deadline_loop(self):
+        courses = [
+            SimpleNamespace(exam_date=None, course_code="CS301"),
+            SimpleNamespace(exam_date=None, course_code="CS302"),
+        ]
+        topics = [
+            SimpleNamespace(
+                id=1,
+                course_id=1,
+                material_id=None,
+                course=courses[0],
+                title="Long topic",
+                estimated_hours=12,
+                priority=1,
+            ),
+            SimpleNamespace(
+                id=2,
+                course_id=2,
+                material_id=None,
+                course=courses[1],
+                title="Short topic",
+                estimated_hours=2,
+                priority=2,
+            ),
+        ]
+
+        items = planner.build_plan_items(topics, date(2026, 10, 22))
+
+        self.assertEqual([item["hours"] for item in items], [12, 2])
+        self.assertNotEqual(items[0]["date"], items[1]["date"])
+
     async def test_add_topic_saves_priority_and_estimated_time(self):
         course = SimpleNamespace(id=2, user_id=4)
         db = FakePlannerDB(course)
@@ -550,6 +627,53 @@ class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(db.saved[0].title, "Recursion")
         self.assertEqual(db.saved[0].priority, 1)
         self.assertEqual(db.saved[0].estimated_hours, 3)
+
+    async def test_delete_course_removes_topics_but_keeps_materials(self):
+        course = SimpleNamespace(
+            id=12,
+            course_code="CSC301",
+            topics=[SimpleNamespace(id=5), SimpleNamespace(id=6)],
+        )
+        plan = SimpleNamespace(
+            plan_data=json.dumps([
+                {"topic_id": 5, "date": "2026-10-24"},
+                {"topic_id": 99, "date": "2026-10-25"},
+            ]),
+            start_date=None,
+            end_date=None,
+            is_active=True,
+        )
+        course_query = MagicMock()
+        course_query.filter.return_value.first.return_value = course
+        plan_query = MagicMock()
+        plan_query.filter.return_value.all.return_value = [plan]
+        topic_query = MagicMock()
+        material_query = MagicMock()
+        db = MagicMock()
+        db.query.side_effect = lambda model: {
+            planner.Course: course_query,
+            planner.StudyPlan: plan_query,
+            planner.StudyTopic: topic_query,
+            StudyMaterial: material_query,
+        }[model]
+
+        result = await planner.delete_course(
+            course_id=12,
+            user=SimpleNamespace(id=4),  # type: ignore[arg-type]
+            db=db,  # type: ignore[arg-type]
+        )
+
+        self.assertFalse(plan.is_active)
+        self.assertEqual(
+            json.loads(plan.plan_data),
+            [{"topic_id": 99, "date": "2026-10-25"}],
+        )
+        topic_query.filter.return_value.delete.assert_called_once_with(
+            synchronize_session=False
+        )
+        material_query.filter.return_value.update.assert_called_once()
+        db.delete.assert_called_once_with(course)
+        self.assertIn("materials were kept", result["message"])
 
     async def test_add_topic_rejects_out_of_range_study_time(self):
         course = SimpleNamespace(id=2, user_id=4)
@@ -857,6 +981,54 @@ class FAQTests(unittest.IsolatedAsyncioTestCase):
 
 
 class QuizTests(unittest.IsolatedAsyncioTestCase):
+    async def test_completed_quizzes_are_hidden_but_attempt_history_is_preserved(self):
+        completed_quiz = SimpleNamespace(
+            id=1,
+            title="Completed quiz",
+            subject="CSC301",
+            questions=[{}, {}],
+            time_limit=120,
+            created_at=None,
+        )
+        new_quiz = SimpleNamespace(
+            id=2,
+            title="New quiz",
+            subject="CSC301",
+            questions=[{}],
+            time_limit=120,
+            created_at=None,
+        )
+        completed_attempt = SimpleNamespace(
+            quiz_id=1,
+            user_id=4,
+            is_completed=1,
+            started_at=None,
+            submitted_at=None,
+            id=11,
+        )
+        quiz_query = MagicMock()
+        quiz_query.filter.return_value.order_by.return_value.all.return_value = [
+            completed_quiz,
+            new_quiz,
+        ]
+        attempt_query = MagicMock()
+        attempt_query.filter.return_value.order_by.return_value.all.return_value = [
+            completed_attempt,
+        ]
+        db = MagicMock()
+        db.query.side_effect = lambda model: {
+            quiz.Quiz: quiz_query,
+            quiz.QuizAttempt: attempt_query,
+        }[model]
+
+        response = await quiz.get_my_quizzes(
+            user=SimpleNamespace(id=4),  # type: ignore[arg-type]
+            db=db,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual([item["quiz_id"] for item in response["quizzes"]], [2])
+        self.assertEqual(completed_attempt.id, 11)
+
     def test_parse_generated_quiz_accepts_json_fenced_response(self):
         questions = [
             {

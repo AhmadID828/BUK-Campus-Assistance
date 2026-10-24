@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+import asyncio
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -42,16 +43,38 @@ class ResetPasswordRequest(BaseModel):
     password: str
 
 
+async def send_reset_email_in_background(recipient: str, reset_link: str) -> None:
+    for attempt in range(2):
+        try:
+            await asyncio.wait_for(
+                send_reset_email(recipient, reset_link),
+                timeout=90,
+            )
+            return
+        except Exception as exc:
+            is_smtp_connect_timeout = "timed out connecting" in str(exc).lower()
+            if attempt == 0 and is_smtp_connect_timeout:
+                logger.warning("SMTP connection timed out for reset email; retrying once")
+                await asyncio.sleep(1)
+                continue
+            logger.exception("Password reset email delivery failed")
+            return
+
+
 @router.post("/forgot-password")
 async def forgot_password(
     request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     http_request: Request,
     db: Session = Depends(get_db),
 ):
     email = str(request.email).strip().lower()
     user = db.query(User).filter(func.lower(User.email) == email).first()
     response_data = {
-        "message": "If an account exists for that email, a password reset link has been sent."
+        "message": (
+            "If an account exists for that email, a reset link will arrive shortly. "
+            "Please check your inbox and spam folder."
+        )
     }
 
     if user:
@@ -76,10 +99,11 @@ async def forgot_password(
             )
             response_data["development_reset_link"] = reset_link
         else:
-            try:
-                await send_reset_email(user.email, reset_link)
-            except Exception:
-                logger.exception("Failed to send password reset email")
+            background_tasks.add_task(
+                send_reset_email_in_background,
+                user.email,
+                reset_link,
+            )
 
     return response_data
 

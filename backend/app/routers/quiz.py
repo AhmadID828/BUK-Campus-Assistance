@@ -500,6 +500,9 @@ async def get_my_quizzes(
                 active_attempt.submitted_at = now
                 active_attempt = None
 
+        if any(attempt.is_completed for attempt in quiz_attempts):
+            continue
+
         results.append({
             "quiz_id": quiz.id,
             "title": quiz.title,

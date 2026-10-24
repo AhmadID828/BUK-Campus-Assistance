@@ -80,7 +80,11 @@ frontend origins, mail (`MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, and
 optional `MAIL_SERVER`/`MAIL_PORT`), `FRONTEND_URL`, and AI providers in the
 hosting dashboards. `FRONTEND_URL` must be the public frontend address so
 approval and password-reset email links return to the deployed app. The backend
-start command is `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+start command is `uvicorn main:app --host 0.0.0.0 --port $PORT`. Password-reset
+emails are queued after the API responds so SMTP delays do not keep the reset
+page waiting; check the Render web-service logs for delivery failures. A
+successful reset-request response means the request was queued, not that the
+email provider confirmed delivery.
 
 Use separate local and hosted databases and credentials. Hosted services
 cannot use an Ollama instance running on a developer's computer; configure an
