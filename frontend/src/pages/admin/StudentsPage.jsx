@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../config";
 import { useAuth } from "../../context/AuthContext";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import {
   Users,
   UserCheck,
@@ -32,9 +33,10 @@ const StudentsPage = () => {
   const [editingStudent, setEditingStudent] = useState(null);
   const [studentForm, setStudentForm] = useState(null);
   const [savingStudent, setSavingStudent] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError("");
 
     try {
@@ -60,7 +62,7 @@ const StudentsPage = () => {
     } catch (err) {
       setError(err.message || "Something went wrong while loading data");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -68,15 +70,15 @@ const StudentsPage = () => {
     fetchData();
   }, [token]);
 
-  const handleAction = async (url, method = "PUT", options = {}) => {
+  const handleAction = async (url, method = "PUT", action = {}) => {
     setActionLoading(url);
+    setError("");
     try {
       const response = await fetch(`${API_BASE_URL}${url}`, {
         method,
         headers: {
           Authorization: `Bearer ${token}`,
         },
-        ...options,
       });
 
       if (!response.ok) {
@@ -84,21 +86,49 @@ const StudentsPage = () => {
         throw new Error(errData.detail || "Action failed");
       }
 
-      await fetchData();
+      const { student, type } = action;
+      if (type === "delete" || type === "reject") {
+        setStudents((current) => current.filter((item) => item.id !== student.id));
+        setPending((current) => current.filter((item) => item.id !== student.id));
+      } else if (type === "deactivate" || type === "activate") {
+        setStudents((current) =>
+          current.map((item) =>
+            item.id === student.id
+              ? { ...item, is_active: type === "activate" }
+              : item,
+          ),
+        );
+      } else if (type === "approve") {
+        setPending((current) => current.filter((item) => item.id !== student.id));
+        setStudents((current) =>
+          current.map((item) =>
+            item.id === student.id ? { ...item, is_approved: true } : item,
+          ),
+        );
+      }
+
+      await fetchData({ silent: true });
+      return true;
     } catch (err) {
-      alert(err.message);
+      setError(err.message || "Action failed");
+      return false;
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleDeleteStudent = async (student) => {
-    const confirmed = window.confirm(
-      `Delete ${student.full_name || "this student"}? This action cannot be undone.`
-    );
-    if (!confirmed) return;
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
 
-    await handleAction(`/admin/students/${student.id}`, "DELETE");
+    const { student, type } = confirmAction;
+    const route = type === "delete"
+      ? `/admin/students/${student.id}`
+      : type === "reject"
+        ? `/admin/students/${student.id}/reject`
+        : `/admin/students/${student.id}/deactivate`;
+    const method = type === "delete" || type === "reject" ? "DELETE" : "PUT";
+    const completed = await handleAction(route, method, { student, type });
+    if (completed) setConfirmAction(null);
   };
 
   const openStudentEditor = (student) => {
@@ -292,7 +322,11 @@ const StudentsPage = () => {
                           <>
                             <button
                               onClick={() =>
-                                handleAction(`/admin/students/${student.id}/approve`)
+                                handleAction(
+                                  `/admin/students/${student.id}/approve`,
+                                  "PUT",
+                                  { student, type: "approve" },
+                                )
                               }
                               disabled={actionLoading}
                               className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition"
@@ -302,7 +336,7 @@ const StudentsPage = () => {
                             </button>
                             <button
                               onClick={() =>
-                                handleAction(`/admin/students/${student.id}/reject`, "DELETE")
+                                setConfirmAction({ student, type: "reject" })
                               }
                               disabled={actionLoading}
                               className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
@@ -316,7 +350,11 @@ const StudentsPage = () => {
                             {student.is_active === false ? (
                               <button
                                 onClick={() =>
-                                  handleAction(`/admin/students/${student.id}/activate`)
+                                  handleAction(
+                                    `/admin/students/${student.id}/activate`,
+                                    "PUT",
+                                    { student, type: "activate" },
+                                  )
                                 }
                                 disabled={actionLoading}
                                 className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition"
@@ -326,9 +364,7 @@ const StudentsPage = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() =>
-                                  handleAction(`/admin/students/${student.id}/deactivate`)
-                                }
+                                onClick={() => setConfirmAction({ student, type: "deactivate" })}
                                 disabled={actionLoading}
                                 className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition"
                                 title="Deactivate"
@@ -337,7 +373,7 @@ const StudentsPage = () => {
                               </button>
                             )}
                             <button
-                              onClick={() => handleDeleteStudent(student)}
+                              onClick={() => setConfirmAction({ student, type: "delete" })}
                               disabled={actionLoading}
                               className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
                               title="Delete user"
@@ -446,6 +482,33 @@ const StudentsPage = () => {
           </form>
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={
+          confirmAction?.type === "delete"
+            ? "Delete student?"
+            : confirmAction?.type === "reject"
+              ? "Reject student registration?"
+              : "Deactivate student?"
+        }
+        message={
+          confirmAction?.type === "delete"
+            ? `Delete ${confirmAction.student.full_name || "this student"}? This action cannot be undone.`
+            : confirmAction?.type === "reject"
+              ? `Rejecting ${confirmAction.student.full_name || "this student"} will remove the pending registration. This action cannot be undone.`
+              : `Deactivate ${confirmAction?.student.full_name || "this student"}? They will lose access until their account is reactivated.`
+        }
+        confirmLabel={
+          confirmAction?.type === "delete"
+            ? "Delete student"
+            : confirmAction?.type === "reject"
+              ? "Reject registration"
+              : "Deactivate student"
+        }
+        busy={Boolean(actionLoading)}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 };

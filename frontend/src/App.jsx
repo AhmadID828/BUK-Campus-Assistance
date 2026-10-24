@@ -76,7 +76,14 @@ function App() {
                   }
                 />
                 <Route path="/events" element={<EventsPage />} />
-                <Route path="/chat" element={<Chat />} />
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute requireApproved featureName="AI Chat">
+                      <Chat />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/emergency" element={<EmergencyContacts />} />
                 <Route path="/campus-map" element={<MapPage />} />
               </Route>

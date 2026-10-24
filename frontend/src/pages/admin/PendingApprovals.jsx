@@ -1,8 +1,9 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { API_BASE_URL } from "../../config";
 import { useAuth } from "../../context/AuthContext";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import {
   CheckCircle,
   XCircle,
@@ -22,8 +23,11 @@ const PendingApprovals = () => {
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(null);
   const [successMessage, setSuccessMessage] = useState("");
+  const [studentToReject, setStudentToReject] = useState(null);
+  const fetchRequestId = useRef(0);
 
   const fetchPending = async ({ silent = false } = {}) => {
+    const requestId = ++fetchRequestId.current;
     if (!silent) {
       setLoading(true);
       setError("");
@@ -42,9 +46,13 @@ const PendingApprovals = () => {
       }
 
       const data = await response.json();
-      setPendingStudents(data.students || []);
+      if (requestId === fetchRequestId.current) {
+        setPendingStudents(data.students || []);
+      }
     } catch (err) {
-      if (!silent) setError(err.message || "Something went wrong");
+      if (requestId === fetchRequestId.current && !silent) {
+        setError(err.message || "Something went wrong");
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -84,13 +92,16 @@ const PendingApprovals = () => {
         throw new Error(errData.detail || "Action failed");
       }
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
+      fetchRequestId.current += 1;
       setSuccessMessage(result.message || "Action completed successfully");
       setPendingStudents((students) =>
         students.filter((student) => student.id !== studentId),
       );
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setActionLoading(null);
     }
@@ -208,7 +219,7 @@ const PendingApprovals = () => {
                   Approve
                 </button>
                 <button
-                  onClick={() => handleAction(student.id, "reject")}
+                  onClick={() => setStudentToReject(student)}
                   disabled={actionLoading === student.id}
                   className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-red-950/30"
                 >
@@ -220,6 +231,19 @@ const PendingApprovals = () => {
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(studentToReject)}
+        title="Reject student registration?"
+        message={`Rejecting ${studentToReject?.full_name || "this student"} will remove the pending registration. This action cannot be undone.`}
+        confirmLabel="Reject registration"
+        busy={Boolean(actionLoading)}
+        onCancel={() => setStudentToReject(null)}
+        onConfirm={async () => {
+          if (!studentToReject) return;
+          const rejected = await handleAction(studentToReject.id, "reject");
+          if (rejected) setStudentToReject(null);
+        }}
+      />
     </div>
   );
 };

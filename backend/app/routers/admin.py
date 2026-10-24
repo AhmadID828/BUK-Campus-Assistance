@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db # type: ignore
 from app.models.user import User
@@ -417,9 +417,20 @@ async def delete_student(
     }
 
 # ========== APPROVE A STUDENT ==========
+async def send_approval_email_in_background(recipient: str, full_name: str) -> None:
+    try:
+        await send_approval_email(recipient=recipient, full_name=full_name)
+    except Exception:
+        logger.exception(
+            "Student approved but notification email failed for recipient %s",
+            recipient,
+        )
+
+
 @router.put("/students/{user_id}/approve")
 async def approve_student(
     user_id: int,
+    background_tasks: BackgroundTasks,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
@@ -439,24 +450,15 @@ async def approve_student(
     )
     db.commit()
 
-    email_sent = True
-    try:
-        await send_approval_email(
-            recipient=student.email, # type: ignore
-            full_name=student.full_name,
-        )
-    except Exception:
-        email_sent = False
-        logger.exception("Student approved but notification email failed for user %s", student.id)
+    background_tasks.add_task(
+        send_approval_email_in_background,
+        recipient=student.email, # type: ignore
+        full_name=student.full_name,
+    )
 
     return {
-        "message": (
-            f"Student '{student.full_name}' has been approved"
-            if email_sent
-            else f"Student '{student.full_name}' has been approved, but the notification email could not be sent"
-        ),
+        "message": f"Student '{student.full_name}' has been approved",
         "is_approved": True,
-        "email_sent": email_sent,
     }
 
 

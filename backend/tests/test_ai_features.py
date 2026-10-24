@@ -571,6 +571,12 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
             filter=lambda *conditions: SimpleNamespace(first=lambda: None)
         )
         added_notifications = []
+        background_tasks = []
+
+        class TestBackgroundTasks:
+            def add_task(self, function, **kwargs):
+                background_tasks.append((function, kwargs))
+
         db = SimpleNamespace(
             query=lambda model: query if model is User else notification_query,
             add=added_notifications.append,
@@ -580,16 +586,21 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         with patch("app.routers.admin.send_approval_email", new_callable=AsyncMock) as send:
             result = await admin.approve_student(
                 user_id=12,
+                background_tasks=TestBackgroundTasks(), #type:ignore
                 admin=SimpleNamespace(id=1), #type:ignore
                 db=db, #type:ignore
             )
 
-        send.assert_awaited_once_with(
-            recipient="student@example.test",
-            full_name="Student Name",
-        )
+            send.assert_not_awaited()
+            self.assertEqual(len(background_tasks), 1)
+            task, task_kwargs = background_tasks[0]
+            await task(**task_kwargs)
+            send.assert_awaited_once_with(
+                recipient="student@example.test",
+                full_name="Student Name",
+            )
         self.assertTrue(student.is_approved)
-        self.assertTrue(result["email_sent"])
+        self.assertTrue(result["is_approved"])
         self.assertEqual(len(added_notifications), 1)
         self.assertIsInstance(added_notifications[0], Notification)
         self.assertEqual(added_notifications[0].kind, "account_approved")

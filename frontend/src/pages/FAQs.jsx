@@ -17,32 +17,36 @@ const fallbackFaqs = [
     id: "e-hostel-registration",
     category: "hostel",
     question: "How do I register for an E-hostel?",
-    answer: "Use Bayero University's official student E-hostel registration portal to view and complete hostel registration.",
+    answer:
+      "Use Bayero University's official student E-hostel registration portal to view and complete hostel registration.",
   },
   {
     id: "registration",
     category: "registration",
     question: "How do I register as a student?",
-    answer: "Complete the registration form with your student details and wait for administrator approval.",
+    answer:
+      "Complete the registration form with your student details and wait for administrator approval.",
   },
   {
     id: "campus-map",
     category: "navigation",
     question: "Where can I find campus locations?",
-    answer: "Open the Campus Map from the student navigation menu to view important campus locations.",
+    answer:
+      "Open the Campus Map from the student navigation menu to view important campus locations.",
   },
   {
     id: "emergency",
     category: "emergency",
     question: "How do I find emergency contacts?",
-    answer: "Open Emergency Contacts from the student navigation menu for the latest campus support numbers.",
+    answer:
+      "Open Emergency Contacts from the student navigation menu for the latest campus support numbers.",
   },
 ];
 
 function FAQs() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLoggedIn, isAdmin } = useAuth();
+  const { isLoggedIn, isApproved, isAdmin } = useAuth();
   const [faqs, setFaqs] = useState(fallbackFaqs);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -51,7 +55,8 @@ function FAQs() {
   useEffect(() => {
     fetch(`${API_BASE_URL}/faqs/`)
       .then((response) => {
-        if (!response.ok) throw new Error("Campus FAQs are temporarily unavailable.");
+        if (!response.ok)
+          throw new Error("Campus FAQs are temporarily unavailable.");
         return response.json();
       })
       .then((data) => {
@@ -138,17 +143,29 @@ function FAQs() {
           <MapPin size={16} />
           Explore campus map
         </Link>
-        <Link
-          to="/chat"
-          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60"
-        >
-          <MessageCircle size={16} />
-          Ask the AI campus assistant
-        </Link>
+        {isAdmin || isApproved ? (
+          <Link
+            to="/chat"
+            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60"
+          >
+            <MessageCircle size={16} />
+            Ask the AI campus assistant
+          </Link>
+        ) : (
+          <p className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <MessageCircle size={16} />
+            {isLoggedIn
+              ? "AI campus assistant available after approval"
+              : "Sign in with an approved account to use the AI campus assistant"}
+          </p>
+        )}
       </div>
 
       {loadError && (
-        <p role="status" className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+        <p
+          role="status"
+          className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+        >
           {loadError} Showing general FAQs for now.
         </p>
       )}
@@ -189,7 +206,9 @@ function FAQs() {
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-blue-100 bg-white py-16 text-center dark:border-slate-700 dark:bg-slate-900">
           <HelpCircle className="mx-auto text-blue-300 mb-3" size={40} />
-          <p className="font-medium text-slate-600 dark:text-slate-300">No FAQs found</p>
+          <p className="font-medium text-slate-600 dark:text-slate-300">
+            No FAQs found
+          </p>
           <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
             Try a different search or category
           </p>
@@ -218,9 +237,15 @@ function FAQs() {
                     )}
                   </div>
                   {isOpen ? (
-                    <ChevronUp size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                    <ChevronUp
+                      size={18}
+                      className="text-blue-500 flex-shrink-0 mt-0.5"
+                    />
                   ) : (
-                    <ChevronDown size={18} className="text-slate-400 flex-shrink-0 mt-0.5" />
+                    <ChevronDown
+                      size={18}
+                      className="text-slate-400 flex-shrink-0 mt-0.5"
+                    />
                   )}
                 </button>
 
@@ -260,5 +285,5 @@ function FAQs() {
     </div>
   );
 }
- 
+
 export default FAQs;
