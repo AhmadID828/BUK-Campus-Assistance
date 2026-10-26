@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Footer from "../components/Footer";
@@ -25,6 +25,8 @@ const AdminLayout = () => {
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const menuButtonRef = useRef(null);
+  const mobileMenuRef = useRef(null);
 
   const menuItems = [
     { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
@@ -41,6 +43,46 @@ const AdminLayout = () => {
       : []),
   ];
   const currentPage = menuItems.find((item) => location.pathname === item.path);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+
+    const menuButton = menuButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => {
+      mobileMenuRef.current?.querySelector("button, a")?.focus();
+    });
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMobileNavOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !mobileMenuRef.current) return;
+      const focusableItems = mobileMenuRef.current.querySelectorAll(
+        'a[href], button:not([disabled])',
+      );
+      const firstItem = focusableItems[0];
+      const lastItem = focusableItems[focusableItems.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstItem) {
+        event.preventDefault();
+        lastItem?.focus();
+      } else if (!event.shiftKey && document.activeElement === lastItem) {
+        event.preventDefault();
+        firstItem?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      menuButton?.focus();
+    };
+  }, [mobileNavOpen]);
 
   const renderMenuItems = () =>
     menuItems.map((item) => {
@@ -67,6 +109,12 @@ const AdminLayout = () => {
   return (
     <>
     <div className="flex min-h-screen min-w-0 bg-sky-50 dark:bg-gray-900">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[70] focus:m-3 focus:rounded-lg focus:bg-white focus:px-4 focus:py-3 focus:text-blue-700 focus:shadow-lg"
+      >
+        Skip to main content
+      </a>
       {/* Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col bg-sky-950 text-white md:flex">
         <div className="p-5 border-b border-sky-800">
@@ -106,7 +154,13 @@ const AdminLayout = () => {
             onClick={() => setMobileNavOpen(false)}
             className="absolute inset-0 bg-slate-950/50"
           />
-          <aside className="absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col bg-sky-950 text-white shadow-2xl">
+          <aside
+            ref={mobileMenuRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Administrator navigation"
+            className="absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col bg-sky-950 text-white shadow-2xl"
+          >
             <div className="flex items-start justify-between border-b border-sky-800 p-5">
               <Link to="/" onClick={() => setMobileNavOpen(false)} className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" aria-label="BUK Campus Assistant System home">
                 <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-10 w-10 rounded-lg bg-white/70 object-contain p-0.5 opacity-90 ring-1 ring-sky-700/80 transition-opacity hover:opacity-100" />
@@ -147,6 +201,7 @@ const AdminLayout = () => {
         <header className="flex items-center gap-3 border-b border-blue-100 bg-white px-4 py-3.5 dark:border-gray-700 dark:bg-gray-800 sm:px-6">
           <button
             type="button"
+            ref={menuButtonRef}
             aria-label="Open admin navigation"
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen(true)}
@@ -164,7 +219,11 @@ const AdminLayout = () => {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 pb-8 sm:p-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="min-w-0 flex-1 overflow-y-auto p-4 pb-8 sm:p-6"
+        >
           <Outlet />
         </main>
         <Footer />

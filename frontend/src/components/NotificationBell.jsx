@@ -51,18 +51,22 @@ export default function NotificationBell() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const initialLoadId = window.setTimeout(
+      () => loadNotifications(controller.signal),
+      0,
+    );
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") {
         loadNotifications();
       }
     };
 
-    loadNotifications(controller.signal);
     const intervalId = window.setInterval(refreshWhenVisible, 15_000);
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       controller.abort();
+      window.clearTimeout(initialLoadId);
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);

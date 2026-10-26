@@ -24,6 +24,7 @@ from app.models.emergency_contact import EmergencyContact
 from app.models.chat import ChatMessage, ChatSession
 from app.models.faq import FAQ
 from app.models.notification import Notification
+from app.models.auth_rate_limit import AuthRateLimit
 
 # Routers
 from app.routers.auth import router as auth_router

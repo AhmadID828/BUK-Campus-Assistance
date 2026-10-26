@@ -178,6 +178,7 @@ function FAQs() {
         />
         <input
           type="text"
+          aria-label="Search campus FAQs"
           placeholder="Search questions or answers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -186,11 +187,17 @@ function FAQs() {
       </div>
 
       {/* Category chips */}
-      <div className="flex gap-2 overflow-x-auto pb-3 mb-5 scrollbar-hide">
+      <div
+        role="group"
+        aria-label="Filter FAQs by category"
+        className="mb-5 flex gap-2 overflow-x-auto pb-3 scrollbar-hide"
+      >
         {categories.map((cat) => (
           <button
             key={cat.id}
+            type="button"
             onClick={() => setSelectedCategory(cat.id)}
+            aria-pressed={selectedCategory === cat.id}
             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition ${
               selectedCategory === cat.id
                 ? "bg-blue-600 text-white"
@@ -202,34 +209,56 @@ function FAQs() {
         ))}
       </div>
 
+      <p className="sr-only" role="status" aria-live="polite">
+        {filtered.length} {filtered.length === 1 ? "FAQ" : "FAQs"} found
+      </p>
+
       {/* FAQ List */}
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-blue-100 bg-white py-16 text-center dark:border-slate-700 dark:bg-slate-900">
           <HelpCircle className="mx-auto text-blue-300 mb-3" size={40} />
           <p className="font-medium text-slate-600 dark:text-slate-300">
-            No FAQs found
+            {search.trim()
+              ? `No FAQs match “${search.trim()}”`
+              : "No FAQs in this category yet"}
           </p>
           <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
-            Try a different search or category
+            Try another search or category, or clear the filters.
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setSelectedCategory("all");
+            }}
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-200 px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/50"
+          >
+            Clear search and category
+          </button>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((faq) => {
             const isOpen = openId === faq.id;
+            const questionId = `faq-question-${faq.id}`;
+            const answerId = `faq-answer-${faq.id}`;
             return (
               <div
                 key={faq.id}
                 className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
               >
                 <button
+                  type="button"
                   onClick={() => toggle(faq.id)}
+                  id={questionId}
+                  aria-expanded={isOpen}
+                  aria-controls={answerId}
                   className="flex w-full items-start justify-between gap-3 px-5 py-4 text-left transition hover:bg-blue-50/50 dark:hover:bg-slate-800"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium leading-snug text-slate-800 dark:text-slate-100">
+                    <span className="text-sm font-medium leading-snug text-slate-800 dark:text-slate-100">
                       {faq.question}
-                    </p>
+                    </span>
                     {faq.category && (
                       <span className="mt-1.5 inline-block rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium capitalize text-blue-600 dark:bg-blue-950 dark:text-blue-300">
                         {faq.category.replace("_", " ")}
@@ -250,7 +279,12 @@ function FAQs() {
                 </button>
 
                 {isOpen && (
-                  <div className="px-5 pb-4 pt-0">
+                  <div
+                    id={answerId}
+                    role="region"
+                    aria-labelledby={questionId}
+                    className="px-5 pb-4 pt-0"
+                  >
                     <div className="whitespace-pre-wrap border-t border-blue-50 pt-3 text-sm leading-relaxed text-slate-600 dark:border-slate-700 dark:text-slate-300">
                       {faq.answer}
                     </div>

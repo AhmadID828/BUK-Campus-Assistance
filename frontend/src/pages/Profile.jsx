@@ -21,12 +21,19 @@ function Profile() {
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [level, setLevel] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
+    if (!token) return undefined;
+
+    const controller = new AbortController();
     const fetchProfile = async () => {
+      setLoading(true);
+      setError("");
       try {
         const response = await fetch(`${API_BASE_URL}/auth/profile`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
 
         const data = await response.json().catch(() => ({}));
@@ -38,17 +45,17 @@ function Profile() {
         setProfileData(updatedUser);
         setLevel(updatedUser.level ? String(updatedUser.level) : "");
       } catch (err) {
-        setError(err.message || "Unable to load your profile. Please try again.");
-        console.error(err);
+        if (err.name !== "AbortError") {
+          setError(err.message || "Unable to load your profile. Please try again.");
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
-    if (token) {
-      fetchProfile();
-    }
-  }, [token]);
+    void fetchProfile();
+    return () => controller.abort();
+  }, [token, retryKey]);
 
   const cancelEditing = () => {
     setLevel(profileData?.level ? String(profileData.level) : "");
@@ -85,7 +92,6 @@ function Profile() {
       const message = err.message || "Unable to update your level. Please try again.";
       setError(message);
       toast.error(message);
-      console.error(err);
     } finally {
       setSaving(false);
     }
@@ -94,7 +100,10 @@ function Profile() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center px-4">
-        <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Loading your profile…</p>
+        <p className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300" role="status" aria-live="polite">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" aria-hidden="true" />
+          Loading your profile…
+        </p>
       </div>
     );
   }
@@ -104,11 +113,21 @@ function Profile() {
       <PageHeader title="My Profile" />
 
       {error && (
-        <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {error}
+        <div role="alert" className="mb-5 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 sm:flex-row sm:items-center sm:justify-between">
+          <span>{error}</span>
+          {!profileData && (
+            <button
+              type="button"
+              onClick={() => setRetryKey((key) => key + 1)}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-red-300 px-4 font-semibold transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-800 dark:hover:bg-red-950/60"
+            >
+              Try again
+            </button>
+          )}
         </div>
       )}
 
+      {!profileData && error ? null : (
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="bg-gradient-to-r from-blue-700 to-cyan-700 px-5 py-6 text-white sm:px-8">
           <p className="text-sm font-medium text-blue-100">Student account</p>
@@ -192,6 +211,7 @@ function Profile() {
           </p>
         </form>
       </section>
+      )}
     </div>
   );
 }

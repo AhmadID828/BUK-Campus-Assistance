@@ -1,19 +1,15 @@
-import os
-
-from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Header, HTTPException
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
+from app.config import JWT_SECRET_KEY
 from app.database import get_db
 from app.models.campus_location import CampusLocation
 from app.models.user import User
 
-load_dotenv()
-
 router = APIRouter(prefix="/campus", tags=["Campus Locations"])
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = JWT_SECRET_KEY
 ALGORITHM = "HS256"
 
 

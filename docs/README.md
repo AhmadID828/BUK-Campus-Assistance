@@ -31,8 +31,13 @@ and campus information together in one responsive web app.
 
 You will need Python, Node.js, PostgreSQL, and a configured AI provider.
 
-1. Create `backend/.env` with a local `DATABASE_URL` and the backend AI settings.
-   Keep API keys and database credentials in environment files, not source code.
+1. Copy `backend/.env.example` to `backend/.env`, then replace the database and
+   JWT secret placeholders. Generate a distinct value for each JWT key with
+   `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Keep API keys
+   and database credentials in environment files, not source code. The example
+   file contains no working credentials and should never be used unchanged in
+   production. The backend rejects missing, shorter-than-32-byte, or identical
+   JWT signing keys at startup.
    For local password-reset testing without SMTP, set
    `APP_ENV=development`, `RESET_EMAIL_MODE=console`, and
    `FRONTEND_URL=http://localhost:5173` in `backend/.env`. The local forgot
@@ -114,6 +119,12 @@ reset links return to the deployed app. The backend start command is
 queued after the API responds; a successful reset-request response means the
 request was queued, not that the provider confirmed delivery. Check the Render
 web-service logs and the Resend email logs for delivery failures or bounces.
+Authentication endpoints use PostgreSQL-backed limits: 10 login attempts per
+15 minutes per client IP and email, 3 password-reset requests per hour per
+client IP and email, and 10 password-reset submissions per hour per client IP.
+Excess requests receive HTTP 429 with a `Retry-After` header. Behind a reverse
+proxy, configure Uvicorn to trust forwarded addresses only from the actual
+proxy; the limits intentionally do not trust client-supplied forwarding headers.
 
 Use separate local and hosted databases and credentials. Hosted services
 cannot use an Ollama instance running on a developer's computer; configure an
@@ -124,9 +135,11 @@ production data before database changes, and use reviewed migrations for schema
 updates. Apply `backend/migrations/003_link_materials_to_courses.sql` before
 deploying the course-linked materials and planner changes, and
 `backend/migrations/004_add_old_campus_location.sql` to add the BUK Old Campus
-map marker, and `backend/migrations/005_add_notifications.sql` to create the
-notification table. The notification bell shows unread counts and supports
-marking individual notifications or all notifications as read.
+map marker, `backend/migrations/005_add_notifications.sql` to create the
+notification table, and `backend/migrations/006_add_auth_rate_limits.sql`
+before deploying database-backed authentication rate limits. The notification
+bell shows unread counts and supports marking individual notifications or all
+notifications as read.
 
 ## Accounts and access
 

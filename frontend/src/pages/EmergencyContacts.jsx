@@ -38,8 +38,10 @@ const EmergencyContacts = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchContacts = async () => {
       setLoading(true);
       setError("");
@@ -47,6 +49,7 @@ const EmergencyContacts = () => {
       try {
         const response = await fetch(`${API_BASE_URL}/emergency/contacts`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
         });
 
         if (!response.ok) throw new Error("Failed to load emergency contacts");
@@ -54,14 +57,17 @@ const EmergencyContacts = () => {
         const data = await response.json();
         setContacts(Array.isArray(data) ? data : data.contacts ?? []);
       } catch (fetchError) {
-        setError(fetchError.message);
+        if (fetchError.name !== "AbortError") {
+          setError(fetchError.message || "Failed to load emergency contacts");
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
-    fetchContacts();
-  }, [token]);
+    void fetchContacts();
+    return () => controller.abort();
+  }, [token, retryKey]);
 
   const filteredContacts = contacts.filter((contact) => {
     const matchesCategory =
@@ -78,14 +84,6 @@ const EmergencyContacts = () => {
     return matchesCategory && matchesSearch;
   });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500" />
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="mb-6">
@@ -98,8 +96,18 @@ const EmergencyContacts = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm">
-          {error}
+        <div
+          className="mb-5 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300 sm:flex-row sm:items-center sm:justify-between"
+          role="alert"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setRetryKey((key) => key + 1)}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-red-300 px-4 font-semibold transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-800 dark:hover:bg-red-950/60"
+          >
+            Try again
+          </button>
         </div>
       )}
 
@@ -107,6 +115,7 @@ const EmergencyContacts = () => {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
+          aria-label="Search emergency contacts"
           placeholder="Search contacts..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -114,11 +123,13 @@ const EmergencyContacts = () => {
         />
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div role="group" aria-label="Filter contacts by category" className="mb-6 flex flex-wrap gap-2">
         {categories.map((category) => (
           <button
             key={category}
+            type="button"
             onClick={() => setActiveCategory(category)}
+            aria-pressed={activeCategory === category}
             className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
               activeCategory === category
                 ? "bg-amber-500 text-white"
@@ -130,9 +141,41 @@ const EmergencyContacts = () => {
         ))}
       </div>
 
-      {filteredContacts.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-10 text-center text-gray-500 dark:text-gray-400">
-          No emergency contacts found
+      {loading ? (
+        <div
+          className="flex h-40 items-center justify-center gap-3 text-sm text-slate-600 dark:text-slate-300"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-amber-500" />
+          Loading emergency contacts…
+        </div>
+      ) : error ? null : filteredContacts.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-amber-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-800 sm:p-10">
+          <Phone className="mx-auto h-10 w-10 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+          <h2 className="mt-3 font-semibold text-slate-900 dark:text-white">
+            {contacts.length === 0
+              ? "No emergency contacts are available yet"
+              : "No contacts match your filters"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            {contacts.length === 0
+              ? "Please check back later or contact campus support through the official university channels."
+              : "Try a different search term or category."}
+          </p>
+          {(search || activeCategory !== "All") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setActiveCategory("All");
+              }}
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-amber-300 px-4 text-sm font-semibold text-amber-800 transition hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/50"
+            >
+              Clear search and category
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -166,7 +209,8 @@ const EmergencyContacts = () => {
                   {contact.phone && (
                     <a
                       href={`tel:${contact.phone}`}
-                      className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-amber-600 dark:hover:text-amber-400 transition"
+                      aria-label={`Call ${contact.name} at ${contact.phone}`}
+                      className="flex min-h-11 items-center gap-2 rounded-lg text-gray-700 transition hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-gray-300 dark:hover:text-amber-400"
                     >
                       <Phone className="w-4 h-4 text-gray-400" />
                       <span className="font-medium">{contact.phone}</span>
@@ -176,7 +220,8 @@ const EmergencyContacts = () => {
                   {contact.alternative_phone && (
                     <a
                       href={`tel:${contact.alternative_phone}`}
-                      className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-amber-600 transition"
+                      aria-label={`Call ${contact.name} at alternate number ${contact.alternative_phone}`}
+                      className="flex min-h-11 items-center gap-2 rounded-lg text-gray-600 transition hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-gray-400"
                     >
                       <Phone className="w-4 h-4 text-gray-400" />
                       <span>{contact.alternative_phone}</span>

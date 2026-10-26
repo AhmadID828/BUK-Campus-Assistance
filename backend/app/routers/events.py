@@ -8,13 +8,12 @@ from datetime import date
 import shutil
 from app.models.event import EventRSVP
 import os
-from dotenv import load_dotenv
+from app.config import JWT_SECRET_KEY
 
-load_dotenv()
 
 router = APIRouter(prefix="/events", tags=["Events & Announcements"])
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = JWT_SECRET_KEY
 ALGORITHM = "HS256"
 
 def get_current_user(authorization: str = Header(None), db: Session = Depends(get_db)):

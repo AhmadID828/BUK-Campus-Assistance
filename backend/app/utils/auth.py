@@ -1,15 +1,12 @@
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-import os
-from dotenv import load_dotenv
 import re
-
-load_dotenv()
+from app.config import JWT_REFRESH_SECRET_KEY, JWT_SECRET_KEY
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = os.getenv("SECRET_KEY")
-REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", SECRET_KEY )
+SECRET_KEY = JWT_SECRET_KEY
+REFRESH_SECRET_KEY = JWT_REFRESH_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -40,7 +37,7 @@ def verify_password(plain_password, hashed_password):
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=60)
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM) #type: ignore
 
@@ -56,5 +53,5 @@ def verify_refresh_token(token: str):
         if payload.get("type") != "refresh":
             return None
         return payload
-    except:
+    except JWTError:
         return None

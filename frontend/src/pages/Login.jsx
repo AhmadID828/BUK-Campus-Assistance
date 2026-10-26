@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, Eye, EyeOff, HelpCircle, Loader2, MapPin } from "lucide-react";
 import { API_BASE_URL, CHIEF_ADMIN_EMAIL } from "../config";
@@ -6,12 +6,18 @@ import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isLoggedIn, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!authLoading && isLoggedIn) {
+      navigate(user?.role === "admin" ? "/admin" : "/dashboard", { replace: true });
+    }
+  }, [authLoading, isLoggedIn, navigate, user?.role]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -46,8 +52,8 @@ const Login = () => {
         localStorage.setItem("refresh_token", data.refresh_token);
       }
 
-      login(data.user, data.access_token);
-      navigate(data.user?.role === "admin" ? "/admin" : "/dashboard");
+      login(data.user, data.access_token, data.refresh_token);
+      navigate(data.user?.role === "admin" ? "/admin" : "/dashboard", { replace: true });
     } catch (loginError) {
       setError(
         loginError instanceof TypeError
@@ -84,19 +90,21 @@ const Login = () => {
           </h2>
 
           {error && (
-            <div className="mb-5 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
+            <div role="alert" className="mb-5 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
               <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Email
               </label>
               <input
+                id="login-email"
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="your.email@buk.edu.ng"
@@ -105,11 +113,12 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Password
               </label>
               <div className="relative">
                 <input
+                  id="login-password"
                   type={showPassword ? "text" : "password"}
                   required
                   autoComplete="current-password"
@@ -139,9 +148,15 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
               className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-md transition flex items-center justify-center gap-2 disabled:opacity-70"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : "Sign In"}
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  Signing in…
+                </>
+              ) : "Sign In"}
             </button>
           </form>
 

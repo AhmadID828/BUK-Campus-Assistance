@@ -2,13 +2,11 @@ from fastapi import HTTPException, Depends, Header
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 import os
-from dotenv import load_dotenv
+from app.config import JWT_SECRET_KEY
 from app.database import get_db
 from app.models.user import User
 
-load_dotenv()
-
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = JWT_SECRET_KEY
 ALGORITHM = "HS256"
 default_chief_admin_email = (
     "aidsfaz@gmail.com" if os.getenv("RENDER", "").lower() == "true" else "admin@buk.edu.ng"

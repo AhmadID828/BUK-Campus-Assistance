@@ -35,7 +35,7 @@ class LocalResetModeTests(unittest.TestCase):
                 "FRONTEND_URL": "http://localhost:5173",
             },
             clear=False,
-        ):
+        ), patch("app.routers.auth.enforce_rate_limit"):
             self.assertTrue(is_local_reset_mode("127.0.0.1"))
             self.assertTrue(is_local_reset_mode("::1"))
             self.assertFalse(is_local_reset_mode("192.168.1.10"))
@@ -91,7 +91,9 @@ class LocalResetModeTests(unittest.TestCase):
                 "FRONTEND_URL": "http://localhost:5173",
             },
             clear=False,
-        ), patch("app.routers.auth.SECRET_KEY", secret):
+        ), patch("app.routers.auth.SECRET_KEY", secret), patch(
+            "app.routers.auth.enforce_rate_limit"
+        ):
             result = asyncio.run(
                 forgot_password(
                     ForgotPasswordRequest(email="student@example.com"),
@@ -124,7 +126,7 @@ class LocalResetModeTests(unittest.TestCase):
                 "FRONTEND_URL": "http://localhost:5173",
             },
             clear=False,
-        ):
+        ), patch("app.routers.auth.enforce_rate_limit"):
             result = asyncio.run(
                 forgot_password(
                     ForgotPasswordRequest(email="unknown@example.com"),

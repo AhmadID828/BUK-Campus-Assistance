@@ -1,5 +1,4 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useMaterialUpload } from "../context/MaterialUploadContext";
@@ -116,8 +115,9 @@ const MaterialsPage = () => {
     };
   }, [token, uploadRevision]);
 
-  const handleUpload = guard((event) => {
+  const handleUpload = (event) => {
     event.preventDefault();
+    if (!guard("Study Materials Upload")) return;
 
     if (!file) {
       setError("Please select a file");
@@ -140,10 +140,11 @@ const MaterialsPage = () => {
     setFile(null);
     setFileInputKey((key) => key + 1);
     setTitle("");
-  }, "Study Materials Upload");
+  };
 
-  const handleRegisterCourse = guard(async (event) => {
+  const handleRegisterCourse = async (event) => {
     event.preventDefault();
+    if (!guard("Course Registration")) return;
     setSavingCourse(true);
     setError("");
     setSuccess("");
@@ -173,9 +174,10 @@ const MaterialsPage = () => {
     } finally {
       setSavingCourse(false);
     }
-  }, "Course Registration");
+  };
 
-  const handleDeleteCourse = guard(async (course) => {
+  const handleDeleteCourse = async (course) => {
+    if (!guard("Delete Registered Course")) return;
     setDeletingCourseId(course.id);
     setError("");
     setSuccess("");
@@ -203,9 +205,10 @@ const MaterialsPage = () => {
     } finally {
       setDeletingCourseId(null);
     }
-  }, "Delete Registered Course");
+  };
 
-  const handleDeleteMaterial = guard(async (material) => {
+  const handleDeleteMaterial = async (material) => {
+    if (!guard("Delete Study Material")) return;
     setDeletingMaterialId(material.id);
     setError("");
     setSuccess("");
@@ -226,9 +229,10 @@ const MaterialsPage = () => {
     } finally {
       setDeletingMaterialId(null);
     }
-  }, "Delete Study Material");
+  };
 
-  const handleSummarize = guard(async (materialId) => {
+  const handleSummarize = async (materialId) => {
+    if (!guard("Material Summarisation")) return;
     setSummarizingId(materialId);
     setError("");
     setSuccess("");
@@ -260,7 +264,7 @@ const MaterialsPage = () => {
     } finally {
       setSummarizingId(null);
     }
-  }, "Material Summarisation");
+  };
 
   const searchTerm = search.trim().toLowerCase();
   const filteredMaterials = materials.filter(
@@ -361,7 +365,10 @@ const MaterialsPage = () => {
         </div>
       )}
 
-      <section className="mb-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm dark:border-gray-700 dark:from-gray-800 dark:to-gray-800">
+      <section
+        id="course-registration"
+        className="mb-5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm dark:border-gray-700 dark:from-gray-800 dark:to-gray-800"
+      >
         <div className="mb-4 flex items-center gap-3">
           <span className="rounded-xl bg-blue-100 p-2.5 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
             <BookOpen className="h-5 w-5" />
@@ -375,9 +382,11 @@ const MaterialsPage = () => {
         </div>
         <form onSubmit={handleRegisterCourse} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input
+            id="course-code"
             value={courseCode}
             onChange={(event) => setCourseCode(event.target.value.toUpperCase())}
             placeholder="Course code (e.g. SWE401)"
+            aria-label="Course code"
             maxLength={32}
             required
             className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
@@ -386,6 +395,7 @@ const MaterialsPage = () => {
             value={courseTitle}
             onChange={(event) => setCourseTitle(event.target.value)}
             placeholder="Course title"
+            aria-label="Course title"
             maxLength={200}
             required
             className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
@@ -469,14 +479,16 @@ const MaterialsPage = () => {
       )}
 
       <form
+        id="material-upload-form"
         onSubmit={handleUpload}
         className="mb-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 grid grid-cols-1 md:grid-cols-2 gap-4"
       >
         <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+          <label htmlFor="material-title" className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
             Title
           </label>
           <input
+            id="material-title"
             type="text"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
@@ -485,8 +497,9 @@ const MaterialsPage = () => {
           />
         </div>
         <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Course</label>
+          <label htmlFor="material-course" className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Course</label>
           <select
+            id="material-course"
             value={courseId}
             onChange={(event) => setCourseId(event.target.value)}
             required
@@ -502,10 +515,11 @@ const MaterialsPage = () => {
           </select>
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+          <label htmlFor="material-file" className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
             File (PDF, DOCX, PPTX)
           </label>
           <input
+            id="material-file"
             key={fileInputKey}
             type="file"
             accept=".pdf,.docx,.pptx"
@@ -537,6 +551,7 @@ const MaterialsPage = () => {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
+          aria-label="Search study materials"
           placeholder="Search materials..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -561,12 +576,64 @@ const MaterialsPage = () => {
       </div>
 
       {loading ? (
-        <div className="flex justify-center h-40 items-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+        <div
+          className="flex h-40 items-center justify-center gap-3 text-sm text-slate-600 dark:text-slate-300"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-amber-500" />
+          Loading your study materials…
         </div>
       ) : filteredMaterials.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-10 text-center text-gray-500">
-          No materials uploaded yet
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-800 sm:p-10">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+            <BookOpen className="h-6 w-6" aria-hidden="true" />
+          </span>
+          {searchTerm ? (
+            <>
+              <h2 className="mt-4 font-semibold text-slate-900 dark:text-white">
+                No materials match “{search.trim()}”
+              </h2>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                Try another title or course code, or clear your search.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-200 px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/50"
+              >
+                Clear search
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className="mt-4 font-semibold text-slate-900 dark:text-white">
+                Your study library is ready for its first material
+              </h2>
+              <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-400">
+                Register a course, then upload lecture notes in PDF, DOCX, or PPTX format. You can create summaries and use materials with your study tools.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetId = courses.length
+                    ? "material-upload-form"
+                    : "course-registration";
+                  document.getElementById(targetId)?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                  document
+                    .getElementById(courses.length ? "material-file" : "course-code")
+                    ?.focus({ preventScroll: true });
+                }}
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800"
+              >
+                {courses.length ? "Upload your first material" : "Register your first course"}
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

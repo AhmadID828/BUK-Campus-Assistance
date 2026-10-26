@@ -226,15 +226,11 @@ function Dashboard() {
   const [overviewRetryKey, setOverviewRetryKey] = useState(0);
 
   const openProtectedAction = (path, featureName) => {
-    guard(() => navigate(path), featureName)();
+    if (guard(featureName)) navigate(path);
   };
 
   useEffect(() => {
-    if (!token || !user?.is_approved) {
-      setOverview(null);
-      setOverviewLoading(false);
-      return undefined;
-    }
+    if (!token || !user?.is_approved) return undefined;
 
     let active = true;
     let requestController;
@@ -319,13 +315,23 @@ function Dashboard() {
     };
   }, [token, user?.is_approved, overviewRetryKey]);
 
-  const progress = overview?.progress;
+  const visibleOverview = token && user?.is_approved ? overview : null;
+  const visibleOverviewLoading =
+    Boolean(token && user?.is_approved) && overviewLoading;
+  const visibleOverviewError =
+    token && user?.is_approved ? overviewError : "";
+  const progress = visibleOverview?.progress;
   const completionRate = Math.min(
     100,
     Math.max(0, Number(progress?.completion_rate) || 0),
   );
-  const nextTopic = overview?.plan?.plan?.find((item) => !item.completed);
-  const nextStep = getNextStep(user?.is_approved, overview, progress, nextTopic);
+  const nextTopic = visibleOverview?.plan?.plan?.find((item) => !item.completed);
+  const nextStep = getNextStep(
+    user?.is_approved,
+    visibleOverview,
+    progress,
+    nextTopic,
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 pb-24">
@@ -340,14 +346,14 @@ function Dashboard() {
           <section className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Learning progress">
             <ProgressCard
               label="Topics completed"
-              value={overviewLoading && !overview ? "—" : `${progress?.completed_topics ?? 0}/${progress?.total_topics ?? 0}`}
+              value={visibleOverviewLoading && !visibleOverview ? "—" : `${progress?.completed_topics ?? 0}/${progress?.total_topics ?? 0}`}
               detail={`${completionRate}% of your tracked topics`}
               icon={CheckCircle2}
               accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-300"
             />
             <ProgressCard
               label="Quiz average"
-              value={overviewLoading && !overview ? "—" : `${Math.round(Number(progress?.average_quiz_score) || 0)}%`}
+              value={visibleOverviewLoading && !visibleOverview ? "—" : `${Math.round(Number(progress?.average_quiz_score) || 0)}%`}
               detail={(progress?.average_quiz_score ?? 0) > 0 ? "Across completed quizzes" : "Take a quiz to start tracking"}
               icon={TrendingUp}
               accent="text-violet-600 bg-violet-50 dark:bg-violet-900/30 dark:text-violet-300"
@@ -355,11 +361,11 @@ function Dashboard() {
             <ProgressCard
               label="Study materials"
               value={
-                overviewLoading && !overview
+                visibleOverviewLoading && !visibleOverview
                   ? "—"
-                  : overview?.materialsHasNext
-                    ? `${overview.materials.length}+`
-                    : overview?.materials?.length ?? 0
+                  : visibleOverview?.materialsHasNext
+                    ? `${visibleOverview.materials.length}+`
+                    : visibleOverview?.materials?.length ?? 0
               }
               detail="Available in your library"
               icon={BookOpen}
@@ -367,7 +373,7 @@ function Dashboard() {
             />
             <ProgressCard
               label="Registered courses"
-              value={overviewLoading && !overview ? "—" : overview?.courses?.length ?? 0}
+              value={visibleOverviewLoading && !visibleOverview ? "—" : visibleOverview?.courses?.length ?? 0}
               detail="Organizing your study"
               icon={Calendar}
               accent="text-sky-600 bg-sky-50 dark:bg-sky-900/30 dark:text-sky-300"
@@ -402,7 +408,7 @@ function Dashboard() {
                 style={{ width: `${completionRate}%` }}
               />
             </div>
-            {overviewLoading && !overview && (
+            {visibleOverviewLoading && !visibleOverview && (
               <p className="mt-3 flex items-center gap-2 text-xs text-slate-400" role="status">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Loading your latest progress…
@@ -412,9 +418,9 @@ function Dashboard() {
         </>
       )}
 
-      {overviewError && !overview && (
+      {visibleOverviewError && !visibleOverview && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between" role="alert">
-          <span>{overviewError} The dashboard will retry automatically.</span>
+          <span>{visibleOverviewError} The dashboard will retry automatically.</span>
           <button
             type="button"
             onClick={() => setOverviewRetryKey((attempt) => attempt + 1)}
@@ -453,7 +459,7 @@ function Dashboard() {
               <button
                 type="button"
                 onClick={() => openProtectedAction(nextStep.path, nextStep.title)}
-                disabled={user?.is_approved && overviewLoading && !overview}
+                disabled={user?.is_approved && visibleOverviewLoading && !visibleOverview}
                 className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
               >
                 {nextStep.label}<ChevronRight className="h-4 w-4" />

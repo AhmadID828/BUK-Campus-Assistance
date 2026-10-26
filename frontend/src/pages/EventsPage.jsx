@@ -24,10 +24,12 @@ const EventsPage = () => {
   const [category, setCategory] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
   const [rsvpLoading, setRsvpLoading] = useState(null);
   const [rsvpStatus, setRsvpStatus] = useState({});
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchEvents = async () => {
       setLoading(true);
       setError("");
@@ -36,7 +38,7 @@ const EventsPage = () => {
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
         const response = await fetch(
           `${API_BASE_URL}/events/?upcoming_only=true`,
-          { headers }
+          { headers, signal: controller.signal }
         );
 
         if (!response.ok) throw new Error("Failed to load events");
@@ -44,14 +46,17 @@ const EventsPage = () => {
         const data = await response.json();
         setEvents(data.events ?? []);
       } catch (fetchError) {
-        setError(fetchError.message);
+        if (fetchError.name !== "AbortError") {
+          setError(fetchError.message || "Failed to load events");
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
-    fetchEvents();
-  }, [token]);
+    void fetchEvents();
+    return () => controller.abort();
+  }, [token, retryKey]);
 
   const filteredEvents = events.filter((event) => {
     const matchesCategory =
@@ -115,11 +120,12 @@ const EventsPage = () => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
+            aria-label="Search campus events"
             placeholder="Search events..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -130,7 +136,9 @@ const EventsPage = () => {
           {categories.map((item) => (
             <button
               key={item}
+              type="button"
               onClick={() => setCategory(item)}
+              aria-pressed={category === item}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
                 category === item
                   ? "bg-blue-500 text-white"
@@ -143,9 +151,45 @@ const EventsPage = () => {
         </div>
       </div>
 
-      {filteredEvents.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-10 text-center text-gray-500 dark:text-gray-400">
-          No upcoming events found
+      {error ? (
+        <div
+          className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/60 dark:bg-red-950/30"
+          role="alert"
+        >
+          <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+          <button
+            type="button"
+            onClick={() => setRetryKey((key) => key + 1)}
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-red-300 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/60"
+          >
+            Try again
+          </button>
+        </div>
+      ) : filteredEvents.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-800 sm:p-10">
+          <Calendar className="mx-auto h-10 w-10 text-blue-500 dark:text-blue-300" aria-hidden="true" />
+          <h2 className="mt-3 font-semibold text-slate-900 dark:text-white">
+            {events.length === 0
+              ? "There are no upcoming events yet"
+              : "No events match your filters"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            {events.length === 0
+              ? "Check back later for campus announcements and activities."
+              : "Try another search term or category to see more events."}
+          </p>
+          {(search || category !== "All") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setCategory("All");
+              }}
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-200 px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/50"
+            >
+              Clear search and category
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

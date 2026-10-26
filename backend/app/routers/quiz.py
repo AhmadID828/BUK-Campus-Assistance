@@ -12,16 +12,15 @@ from app.ai.llm_service import OLLAMA_QUIZ_MODEL, generate_answer
 from app.utils.dependencies import require_approved_user
 from jose import jwt, JWTError
 import os
-from dotenv import load_dotenv
 import json
 import logging
+from app.config import JWT_SECRET_KEY
 
-load_dotenv()
 
 router = APIRouter(prefix="/quiz", tags=["Quiz Generation"])
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = JWT_SECRET_KEY
 ALGORITHM = "HS256"
 
 TIME_LIMITS = {

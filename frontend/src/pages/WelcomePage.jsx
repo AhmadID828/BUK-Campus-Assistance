@@ -10,6 +10,8 @@ import {
   ChevronRight,
   HelpCircle,
   MapPin,
+  Pause,
+  Play,
   ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -82,18 +84,24 @@ const campusSlides = [
 function CampusCarousel() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [unavailableImages, setUnavailableImages] = useState(() => new Set());
-  const [paused, setPaused] = useState(false);
+  const [manuallyPaused, setManuallyPaused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [prefersReducedMotion] = useState(
+    () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
+  );
   const activeSlide = campusSlides[activeIndex];
   const imageUnavailable = unavailableImages.has(activeSlide.image);
   const slideCount = campusSlides.length;
+  const autoRotate = !manuallyPaused && !isHovered && !isFocused && !prefersReducedMotion;
 
   useEffect(() => {
-    if (paused) return undefined;
+    if (!autoRotate) return undefined;
     const timer = window.setInterval(() => {
       setActiveIndex((index) => (index + 1) % slideCount);
-    }, 2000);
+    }, 5000);
     return () => window.clearInterval(timer);
-  }, [paused, slideCount]);
+  }, [autoRotate, slideCount]);
 
   const changeSlide = (offset) => {
     setActiveIndex((index) => (index + offset + slideCount) % slideCount);
@@ -104,11 +112,11 @@ function CampusCarousel() {
       className="relative mb-6 h-48 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 sm:h-56"
       aria-roledescription="carousel"
       aria-label="Bayero University Kano campus highlights"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setIsFocused(true)}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false);
+        if (!event.currentTarget.contains(event.relatedTarget)) setIsFocused(false);
       }}
     >
       {!imageUnavailable ? (
@@ -132,10 +140,18 @@ function CampusCarousel() {
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/10 to-transparent" />
       {imageUnavailable && (
-        <span className="absolute right-3 top-3 rounded-full bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-white">
+        <span className="absolute left-3 top-3 rounded-full bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-white">
           Illustrated highlight
         </span>
       )}
+      <button
+        type="button"
+        onClick={() => setManuallyPaused((isPaused) => !isPaused)}
+        aria-label={manuallyPaused ? "Play campus highlights" : "Pause campus highlights"}
+        className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950/55 text-white backdrop-blur hover:bg-slate-950/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        {manuallyPaused ? <Play size={17} /> : <Pause size={17} />}
+      </button>
       <div className="absolute inset-x-3 top-1/2 flex -translate-y-1/2 justify-between">
         <button
           type="button"
@@ -155,7 +171,7 @@ function CampusCarousel() {
         </button>
       </div>
       <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
-        <div aria-live="polite" aria-atomic="true">
+        <div aria-live={autoRotate ? "off" : "polite"} aria-atomic="true">
           <p className="text-sm font-semibold text-white">{activeSlide.title}</p>
           <p className="mt-1 line-clamp-1 text-xs text-white/80">{activeSlide.description}</p>
         </div>
@@ -179,7 +195,9 @@ function CampusCarousel() {
 }
 
 export default function WelcomePage() {
-  const { isApproved, isStudent } = useAuth();
+  const { isApproved, isStudent, isLoggedIn, isAdmin } = useAuth();
+  const homePath = isAdmin ? "/admin" : "/dashboard";
+  const primaryPath = isLoggedIn ? homePath : "/signup";
 
   return (
     <main className="min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-indigo-100 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 dark:text-slate-100">
@@ -197,12 +215,20 @@ export default function WelcomePage() {
             <HelpCircle size={17} />
             FAQs
           </Link>
-          <Link to="/login" className="rounded-xl px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-slate-800">
-            Sign in
-          </Link>
-          <Link to="/signup" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 hover:bg-blue-700">
-            Get started
-          </Link>
+          {isLoggedIn ? (
+            <Link to={homePath} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              Open dashboard
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="rounded-xl px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300 dark:hover:bg-slate-800">
+                Sign in
+              </Link>
+              <Link to="/signup" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                Get started
+              </Link>
+            </>
+          )}
         </nav>
       </header>
 
@@ -220,8 +246,8 @@ export default function WelcomePage() {
             campus information into one simple place.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/signup" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700">
-              Create your account
+            <Link to={primaryPath} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              {isLoggedIn ? "Go to your dashboard" : "Create your account"}
               <ArrowRight size={18} />
             </Link>
             <Link to="/faqs" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-800 dark:hover:text-blue-300">

@@ -169,73 +169,84 @@ function Signup() {
           </h1>
 
           {error && !resultPopup && (
-            <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30">
+            <div role="alert" aria-live="assertive" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30">
               <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
             </div>
           )}
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="signup-full-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Full Name
               </label>
               <input
+                id="signup-full-name"
                 type="text"
                 name="full_name"
                 value={form.full_name}
                 onChange={handleChange}
                 required
+                autoComplete="name"
                 aria-invalid={Boolean(fieldErrors.full_name)}
+                aria-describedby={fieldErrors.full_name ? "signup-full-name-error" : undefined}
                 className={fieldClass("full_name")}
                 placeholder="Ahmad Idris Dauda"
               />
-              {fieldErrors.full_name && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.full_name}</p>}
+              {fieldErrors.full_name && <p id="signup-full-name-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.full_name}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="signup-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Email
               </label>
               <input
+                id="signup-email"
                 type="email"
                 name="email"
                 value={form.email}
                 onChange={handleChange}
                 required
+                autoComplete="email"
                 aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? "signup-email-error" : undefined}
                 className={fieldClass("email")}
                 placeholder="your.email@buk.edu.ng"
               />
-              {fieldErrors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.email}</p>}
+              {fieldErrors.email && <p id="signup-email-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.email}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="signup-registration-number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Registration Number
               </label>
               <input
+                id="signup-registration-number"
                 type="text"
                 name="reg_number"
                 value={form.reg_number}
                 onChange={handleChange}
                 required
+                autoComplete="off"
                 aria-invalid={Boolean(fieldErrors.reg_number)}
+                aria-describedby={fieldErrors.reg_number ? "signup-registration-number-error" : undefined}
                 className={fieldClass("reg_number")}
                 placeholder="CST/20/COM/00001"
               />
-              {fieldErrors.reg_number && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.reg_number}</p>}
+              {fieldErrors.reg_number && <p id="signup-registration-number-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.reg_number}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="signup-faculty" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Faculty
               </label>
               <select
+                id="signup-faculty"
                 name="faculty"
                 value={form.faculty}
                 onChange={handleChange}
                 required
                 aria-invalid={Boolean(fieldErrors.faculty)}
+                aria-describedby={fieldErrors.faculty ? "signup-faculty-error" : undefined}
                 className={`${fieldClass("faculty")} bg-white dark:bg-gray-700`}
               >
                 <option value="">Select your faculty</option>
@@ -245,21 +256,23 @@ function Signup() {
                   </option>
                 ))}
               </select>
-              {fieldErrors.faculty && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.faculty}</p>}
+              {fieldErrors.faculty && <p id="signup-faculty-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.faculty}</p>}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="signup-department" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Department
                 </label>
                 <select
+                  id="signup-department"
                   name="department"
                   value={form.department}
                   onChange={handleChange}
                   required
                   disabled={!form.faculty}
                   aria-invalid={Boolean(fieldErrors.department)}
+                  aria-describedby={fieldErrors.department ? "signup-department-error" : undefined}
                   className={`${fieldClass("department")} bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-700`}
                 >
                   <option value="">
@@ -276,10 +289,11 @@ function Signup() {
                   ))}
                   <option value={OTHER_DEPARTMENT}>Other / not listed</option>
                 </select>
-                {fieldErrors.department && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.department}</p>}
+                {fieldErrors.department && <p id="signup-department-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.department}</p>}
                 {form.department === OTHER_DEPARTMENT && (
                   <>
                     <input
+                      id="signup-other-department"
                       type="text"
                       name="otherDepartment"
                       value={form.otherDepartment}
@@ -287,24 +301,28 @@ function Signup() {
                       required
                       maxLength={120}
                       aria-invalid={Boolean(fieldErrors.otherDepartment)}
+                      aria-label="Other department name"
+                      aria-describedby={fieldErrors.otherDepartment ? "signup-other-department-error" : undefined}
                       className={`mt-2 ${fieldClass("otherDepartment")}`}
                       placeholder="Enter your department name"
                     />
-                    {fieldErrors.otherDepartment && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.otherDepartment}</p>}
+                    {fieldErrors.otherDepartment && <p id="signup-other-department-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.otherDepartment}</p>}
                   </>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="signup-level" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Level
                 </label>
                 <select
+                  id="signup-level"
                   name="level"
                   value={form.level}
                   onChange={handleChange}
                   required
                   aria-invalid={Boolean(fieldErrors.level)}
+                  aria-describedby={fieldErrors.level ? "signup-level-error" : undefined}
                   className={`${fieldClass("level")} bg-white dark:bg-gray-700`}
                 >
                   <option value="">Select</option>
@@ -315,16 +333,17 @@ function Signup() {
                   <option value="500">500</option>
                   <option value="600">600</option>
                 </select>
-                {fieldErrors.level && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.level}</p>}
+                {fieldErrors.level && <p id="signup-level-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.level}</p>}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Password
               </label>
               <div className="relative">
                 <input
+                  id="signup-password"
                   type={showPassword ? "text" : "password"}
                   name="password"
                   value={form.password}
@@ -332,6 +351,10 @@ function Signup() {
                   required
                   autoComplete="new-password"
                   aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={[
+                    "signup-password-requirements",
+                    fieldErrors.password ? "signup-password-error" : null,
+                  ].filter(Boolean).join(" ")}
                   className={`${fieldClass("password")} pr-12`}
                   placeholder="Create a strong password"
                 />
@@ -345,8 +368,8 @@ function Signup() {
                   {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
                 </button>
               </div>
-              {fieldErrors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.password}</p>}
-              <ul className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" aria-live="polite">
+              {fieldErrors.password && <p id="signup-password-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.password}</p>}
+              <ul id="signup-password-requirements" className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2" aria-live="polite">
                 {getPasswordRequirements(form.password).map((requirement) => (
                   <li key={requirement.label} className={requirement.valid ? "text-green-700 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}>
                     {requirement.valid ? "✓" : "•"} {requirement.label}
@@ -361,11 +384,12 @@ function Signup() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label htmlFor="signup-confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Confirm Password
               </label>
               <div className="relative">
                 <input
+                  id="signup-confirm-password"
                   type={showConfirmPassword ? "text" : "password"}
                   name="confirmPassword"
                   value={form.confirmPassword}
@@ -373,6 +397,7 @@ function Signup() {
                   required
                   autoComplete="new-password"
                   aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                  aria-describedby={fieldErrors.confirmPassword ? "signup-confirm-password-error" : undefined}
                   className={`${fieldClass("confirmPassword")} pr-12`}
                   placeholder="Repeat password"
                 />
@@ -386,16 +411,20 @@ function Signup() {
                   {showConfirmPassword ? <EyeOff size={21} /> : <Eye size={21} />}
                 </button>
               </div>
-              {fieldErrors.confirmPassword && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.confirmPassword}</p>}
+              {fieldErrors.confirmPassword && <p id="signup-confirm-password-error" className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.confirmPassword}</p>}
             </div>
 
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
               className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-semibold text-white shadow-md transition hover:bg-blue-700 disabled:opacity-70"
             >
               {loading ? (
-                <Loader2 className="animate-spin" size={18} />
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Creating account…
+                </>
               ) : "Sign Up"}
             </button>
           </form>

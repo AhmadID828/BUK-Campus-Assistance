@@ -11,7 +11,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 from fastapi import BackgroundTasks, HTTPException, UploadFile
 from pydantic import ValidationError
+from sqlalchemy import create_engine
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import Session
 
 from app.ai.llm_service import (
     LLMService,
@@ -23,15 +25,18 @@ from app.ai.llm_service import (
 )
 from app.ai.campus_qa import answer_campus_question
 from app.ai.rag_service import RAGService
+from app.models.auth_rate_limit import AuthRateLimit
 from app.models.faq import FAQ
 from app.models.notification import Notification
 from app.models.study_material import StudyMaterial
 from app.models.user import User
 from app.routers import admin, auth, chat, emergency, events, faqs, materials, planner, quiz
 from app.schemas.user import AdminCreate, AdminStudentUpdate, UserCreate, UserLogin
+from app.config import validate_jwt_secrets
 from app.utils.auth import password_validation_errors
 from app.utils.dependencies import get_current_user, get_super_admin
 from app.utils.email import send_approval_email, send_email
+from app.utils.rate_limit import enforce_rate_limit, make_rate_limit_key
 
 
 class FakeQuery:
@@ -189,6 +194,34 @@ class PasswordStrengthTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIn("at least 8 characters", raised.exception.detail)
+
+
+class JwtSecretConfigurationTests(unittest.TestCase):
+    def test_accepts_distinct_secrets_with_at_least_32_bytes(self):
+        secret_key = "a" * 32
+        refresh_secret_key = "b" * 32
+
+        self.assertEqual(
+            validate_jwt_secrets(secret_key, refresh_secret_key),
+            (secret_key, refresh_secret_key),
+        )
+
+    def test_rejects_missing_or_short_secrets(self):
+        for secret_key, refresh_secret_key in (
+            (None, "b" * 32),
+            ("a" * 32, None),
+            ("short", "b" * 32),
+            ("a" * 32, "short"),
+        ):
+            with self.subTest(secret_key=secret_key, refresh_secret_key=refresh_secret_key):
+                with self.assertRaisesRegex(RuntimeError, "at least 32 bytes"):
+                    validate_jwt_secrets(secret_key, refresh_secret_key)
+
+    def test_rejects_reusing_the_same_secret(self):
+        secret = "a" * 32
+
+        with self.assertRaisesRegex(RuntimeError, "must be different"):
+            validate_jwt_secrets(secret, secret)
 
 
 class ChatResponseFormattingTests(unittest.TestCase):
@@ -404,10 +437,16 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         db = SimpleNamespace(query=lambda model: query)
         credentials = UserLogin(email="admin@buk.edu.ng", password="ValidPass123!")
 
-        with patch("app.routers.auth.verify_password", return_value=True), patch(
+        with patch("app.routers.auth.enforce_rate_limit"), patch(
+            "app.routers.auth.clear_rate_limit"
+        ), patch("app.routers.auth.verify_password", return_value=True), patch(
             "app.routers.auth.create_access_token", return_value="access"
         ), patch("app.routers.auth.create_refresh_token", return_value="refresh"):
-            response = auth.login(credentials, db) # type: ignore[arg-type]
+            response = auth.login(
+                SimpleNamespace(client=SimpleNamespace(host="127.0.0.1")),
+                credentials,
+                db,
+            ) # type: ignore[arg-type]
 
         self.assertIn("lower(users.email)", str(query.condition).lower())
         self.assertEqual(response["user"]["email"], "Admin@buk.edu.ng")
@@ -551,7 +590,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
     async def test_approval_email_uses_deployed_frontend_url(self):
         with patch.dict("os.environ", {"FRONTEND_URL": "https://study.example.test/"}), patch(
             "app.utils.email.send_email", new_callable=AsyncMock
-        ) as send_email:
+        ) as send_email, patch("app.routers.auth.enforce_rate_limit"):
             await send_approval_email("student@example.test", "Student Name")
 
         self.assertIn("https://study.example.test/login", send_email.call_args.kwargs["body"])
@@ -626,7 +665,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
             return_value="https://study.example.test",
         ), patch(
             "app.routers.auth.send_reset_email", new_callable=AsyncMock
-        ) as send_email:
+        ) as send_email, patch("app.routers.auth.enforce_rate_limit"):
             background_tasks = BackgroundTasks()
             result = await auth.forgot_password(
                 auth.ForgotPasswordRequest(email="student@example.com"),

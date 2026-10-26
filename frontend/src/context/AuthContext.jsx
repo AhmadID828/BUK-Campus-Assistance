@@ -2,17 +2,25 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import { API_BASE_URL } from "../config";
 
-
 const AuthContext = createContext();
+
+const readStoredUser = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  } catch {
+    return null;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
 
   const clearSession = useCallback(() => {
     localStorage.removeItem("access_token");
@@ -24,7 +32,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(() => {
     clearSession();
-    navigate("/login");
+    toast.success("You have been signed out.");
+    navigate("/login", { replace: true });
   }, [clearSession, navigate]);
 
   const refreshAccessToken = useCallback(async () => {
@@ -42,25 +51,67 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        logout();
+        clearSession();
+        toast.error("Your session expired. Please sign in again.");
         return null;
       }
 
       const data = await response.json();
+      if (!data?.access_token) {
+        clearSession();
+        return null;
+      }
+
       localStorage.setItem("access_token", data.access_token);
       setToken(data.access_token);
       return data.access_token;
     } catch (error) {
       clearSession();
+      toast.error("We couldn't refresh your session. Please sign in again.");
       return null;
     }
-  }, [clearSession, logout]);
+  }, [clearSession]);
 
-  // Load user from localStorage on app start
+  const authFetch = useCallback(
+    async (url, options = {}) => {
+      const requestHeaders = new Headers(options.headers || {});
+      let activeToken = token || localStorage.getItem("access_token");
+
+      if (!activeToken) {
+        clearSession();
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      requestHeaders.set("Authorization", `Bearer ${activeToken}`);
+
+      let response = await fetch(url, {
+        ...options,
+        headers: requestHeaders,
+      });
+
+      if (response.status === 401) {
+        const refreshedToken = await refreshAccessToken();
+        if (!refreshedToken) {
+            toast.error("Your session has expired. Please sign in again.");
+            throw new Error("Your session has expired. Please sign in again.");
+          }
+
+        requestHeaders.set("Authorization", `Bearer ${refreshedToken}`);
+        response = await fetch(url, {
+          ...options,
+          headers: requestHeaders,
+        });
+      }
+
+      return response;
+    },
+    [clearSession, refreshAccessToken, token],
+  );
+
   useEffect(() => {
     const restoreSession = async () => {
       const storedToken = localStorage.getItem("access_token");
-      const storedUser = localStorage.getItem("user");
+      const storedUser = readStoredUser();
 
       if (!storedToken || !storedUser) {
         setLoading(false);
@@ -69,7 +120,7 @@ export const AuthProvider = ({ children }) => {
 
       try {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        setUser(storedUser);
 
         let activeToken = storedToken;
         let profileResponse = await fetch(`${API_BASE_URL}/auth/profile`, {
@@ -85,44 +136,48 @@ export const AuthProvider = ({ children }) => {
           });
         }
 
-        if (!profileResponse.ok) throw new Error("Unable to restore session");
+        if (!profileResponse.ok) {
+          throw new Error("Unable to restore session");
+        }
 
         const currentUser = await profileResponse.json();
         localStorage.setItem("user", JSON.stringify(currentUser));
         setToken(activeToken);
         setUser(currentUser);
       } catch (error) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("user");
-        localStorage.removeItem("refresh_token");
-        setToken(null);
-        setUser(null);
+        clearSession();
+        toast.error("Your saved session was invalid. Please sign in again.");
       } finally {
         setLoading(false);
       }
     };
 
     restoreSession();
-  }, [refreshAccessToken]);
+  }, [clearSession, refreshAccessToken]);
 
-  // login expects (userData, accessToken)
-  const login = (userData, accessToken) => {
-    localStorage.setItem("access_token", accessToken);
+  const login = useCallback((userData, accessToken, refreshToken = localStorage.getItem("refresh_token")) => {
+    if (accessToken) {
+      localStorage.setItem("access_token", accessToken);
+      setToken(accessToken);
+    }
+
+    if (refreshToken) {
+      localStorage.setItem("refresh_token", refreshToken);
+    }
+
     localStorage.setItem("user", JSON.stringify(userData));
-    setToken(accessToken);
     setUser(userData);
-  };
+  }, []);
 
-  const updateSession = (userData, accessToken = token) => {
+  const updateSession = useCallback((userData, accessToken = token) => {
     if (accessToken) {
       localStorage.setItem("access_token", accessToken);
       setToken(accessToken);
     }
     localStorage.setItem("user", JSON.stringify(userData));
     setUser(userData);
-  };
+  }, [token]);
 
-  // Helpers
   const isLoggedIn = !!user && !!token;
   const isApproved = user?.is_approved === true;
   const isAdmin = user?.role === "admin";
@@ -143,6 +198,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     setUser,
     refreshAccessToken,
+    authFetch,
   };
 
   return (
@@ -152,7 +208,6 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Custom hook
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

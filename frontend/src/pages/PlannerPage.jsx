@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { API_BASE_URL } from "../config";
 import useApprovalGuard from "../hooks/useApprovalGuard";
@@ -11,6 +11,7 @@ import {
   Calendar,
   CalendarClock,
   CheckCircle2,
+  BookOpen,
   Loader2,
   Sparkles,
   Trash2,
@@ -342,7 +343,8 @@ const PlannerPage = () => {
     };
   }, [token]);
 
-  const handleUpdateTopic = guard(async (topicId, changes) => {
+  const handleUpdateTopic = async (topicId, changes) => {
+    if (!guard("Update Study Topic")) return;
     setError("");
     setSuccess("");
     try {
@@ -370,10 +372,11 @@ const PlannerPage = () => {
     } catch (err) {
       setError(err?.message || "Failed to update topic");
     }
-  }, "Update Study Topic");
+  };
 
-  const handleImportMaterial = guard(async (e) => {
+  const handleImportMaterial = async (e) => {
     e.preventDefault();
+    if (!guard("Import Material")) return;
 
     if (!selectedCourse || !selectedMaterial) {
       setError("Choose a course and one of its uploaded materials.");
@@ -419,9 +422,10 @@ const PlannerPage = () => {
     } finally {
       setSavingTopic(false);
     }
-  }, "Import Material");
+  };
 
-  const handleGenerate = guard(async () => {
+  const handleGenerate = async () => {
+    if (!guard("Generate Study Plan")) return;
     setPlanAction("generate");
     setError("");
     setSuccess("");
@@ -443,9 +447,10 @@ const PlannerPage = () => {
     } finally {
       setPlanAction(null);
     }
-  }, "Generate Study Plan");
+  };
 
-  const handleRegenerate = guard(async () => {
+  const handleRegenerate = async () => {
+    if (!guard("Regenerate Study Plan")) return;
     setPlanAction("regenerate");
     setError("");
     setSuccess("");
@@ -467,9 +472,10 @@ const PlannerPage = () => {
     } finally {
       setPlanAction(null);
     }
-  }, "Regenerate Study Plan");
+  };
 
-  const handleCompleteTopic = guard(async (topicId) => {
+  const handleCompleteTopic = async (topicId) => {
+    if (!guard("Complete Study Topic")) return;
     try {
       const response = await fetch(`${API_BASE_URL}/planner/topics/${topicId}/complete`, {
         method: "PUT",
@@ -484,9 +490,10 @@ const PlannerPage = () => {
     } catch (err) {
       setError(err?.message || "Failed to mark topic complete");
     }
-  }, "Complete Study Topic");
+  };
 
-  const handleRemoveTopic = guard(async (topicId) => {
+  const handleRemoveTopic = async (topicId) => {
+    if (!guard("Remove Planner Topic")) return;
     setDeletingTopicId(topicId);
     setError("");
     setSuccess("");
@@ -507,9 +514,10 @@ const PlannerPage = () => {
     } finally {
       setDeletingTopicId(null);
     }
-  }, "Remove Planner Topic");
+  };
 
-  const handleDeletePlan = guard(async () => {
+  const handleDeletePlan = async () => {
+    if (!guard("Delete Study Plan")) return;
     setDeletingPlan(true);
     setError("");
     setSuccess("");
@@ -528,9 +536,10 @@ const PlannerPage = () => {
     } finally {
       setDeletingPlan(false);
     }
-  }, "Delete Study Plan");
+  };
 
-  const handleDeleteCourse = guard(async (course) => {
+  const handleDeleteCourse = async (course) => {
+    if (!guard("Delete Course")) return;
     setDeletingCourseId(course.id);
     setError("");
     setSuccess("");
@@ -553,7 +562,7 @@ const PlannerPage = () => {
     } finally {
       setDeletingCourseId(null);
     }
-  }, "Delete Course");
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
@@ -772,9 +781,25 @@ const PlannerPage = () => {
           Registered Courses and Study Materials
         </h3>
         {courses.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            No courses registered yet. Add a course to organize your study materials.
-          </p>
+          <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/60 p-5 dark:border-gray-600 dark:bg-gray-700/30">
+            <div className="flex items-start gap-3">
+              <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-300" aria-hidden="true" />
+              <div>
+                <p className="font-medium text-gray-800 dark:text-white">
+                  Start by registering a course
+                </p>
+                <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                  Your registered courses and their study materials will appear here. Add a course first, then upload its lecture notes.
+                </p>
+                <Link
+                  to="/materials"
+                  className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800"
+                >
+                  Register a course
+                </Link>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {courses.map((course) => (
@@ -827,9 +852,17 @@ const PlannerPage = () => {
                 </div>
                 <div className="mt-3 space-y-1">
                   {(course.topics || []).length === 0 ? (
-                    <p className="text-xs text-gray-500">
-                      No materials added to this course yet.
-                    </p>
+                    <div className="flex flex-col gap-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/40 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs leading-5 text-gray-600 dark:text-gray-300">
+                        No study topics added for this course yet.
+                      </p>
+                      <Link
+                        to="/materials"
+                        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/50"
+                      >
+                        Add materials
+                      </Link>
+                    </div>
                   ) : (
                     course.topics.map((topic) => (
                       <div
@@ -861,7 +894,9 @@ const PlannerPage = () => {
 
           {(reminders.planned_tasks || []).length === 0 &&
           (reminders.weak_topics_reminder || []).length === 0 ? (
-            <p className="text-sm text-gray-500">No tasks for today.</p>
+            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:bg-gray-700/40 dark:text-gray-300">
+              No study tasks are scheduled for today. Your active plan is shown above.
+            </p>
           ) : (
             <ul className="space-y-2 text-sm">
               {(reminders.planned_tasks || []).map((t, i) => (

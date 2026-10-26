@@ -1,9 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-
-
-
 
 const useApprovalGuard = () => {
   const { isLoggedIn, isApproved, isAdmin } = useAuth();
@@ -11,33 +8,23 @@ const useApprovalGuard = () => {
   const [showLockedModal, setShowLockedModal] = useState(false);
   const [lockedFeatureName, setLockedFeatureName] = useState("");
 
-  const guard = (action, featureName = "this feature") => {
-    return (...args) => {
-      if (!isLoggedIn) {
-        navigate("/login");
-        return;
-      }
+  const guard = useCallback((featureName = "this feature") => {
+    if (!isLoggedIn) {
+      navigate("/login");
+      return false;
+    }
 
-      // Admins always have access
-      if (isAdmin) {
-        return action(...args);
-      }
+    if (isAdmin || isApproved) return true;
 
-      // Students need approval
-      if (!isApproved) {
-        setLockedFeatureName(featureName);
-        setShowLockedModal(true);
-        return;
-      }
+    setLockedFeatureName(featureName);
+    setShowLockedModal(true);
+    return false;
+  }, [isAdmin, isApproved, isLoggedIn, navigate]);
 
-      return action(...args);
-    };
-  };
-
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setShowLockedModal(false);
     setLockedFeatureName("");
-  };
+  }, []);
 
   return {
     guard,

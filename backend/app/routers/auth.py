@@ -23,6 +23,11 @@ from app.utils.email import (
     is_local_reset_mode,
     send_reset_email,
 )
+from app.utils.rate_limit import (
+    clear_rate_limit,
+    enforce_rate_limit,
+    make_rate_limit_key,
+)
 from datetime import datetime, timedelta
 import logging
 from jose import jwt, JWTError
@@ -70,6 +75,13 @@ async def forgot_password(
     db: Session = Depends(get_db),
 ):
     email = str(request.email).strip().lower()
+    client_host = http_request.client.host if http_request.client else "unknown"
+    bucket_key = make_rate_limit_key(
+        "forgot-password",
+        f"{client_host}:{email}",
+    )
+    enforce_rate_limit(db, bucket_key, limit=3, window_seconds=60 * 60)
+
     user = db.query(User).filter(func.lower(User.email) == email).first()
     response_data = {
         "message": (
@@ -111,9 +123,14 @@ async def forgot_password(
 
 @router.post("/reset-password")
 def reset_password(
+    http_request: Request,
     request: ResetPasswordRequest,
     db: Session = Depends(get_db),
 ):
+    client_host = http_request.client.host if http_request.client else "unknown"
+    bucket_key = make_rate_limit_key("reset-password", client_host)
+    enforce_rate_limit(db, bucket_key, limit=10, window_seconds=60 * 60)
+
     password_errors = password_validation_errors(request.password)
     if password_errors:
         raise HTTPException(
@@ -177,8 +194,16 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(user_data: UserLogin, db: Session = Depends(get_db)):
+def login(
+    http_request: Request,
+    user_data: UserLogin,
+    db: Session = Depends(get_db),
+):
     email = user_data.email.strip().lower()
+    client_host = http_request.client.host if http_request.client else "unknown"
+    bucket_key = make_rate_limit_key("login", f"{client_host}:{email}")
+    enforce_rate_limit(db, bucket_key, limit=10, window_seconds=15 * 60)
+
     user = db.query(User).filter(func.lower(User.email) == email).first()
 
     if not user or not verify_password(user_data.password, user.password_hash):
@@ -186,6 +211,8 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
+
+    clear_rate_limit(db, bucket_key)
 
 # Pending users are allowed to login
 

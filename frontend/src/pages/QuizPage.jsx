@@ -135,7 +135,8 @@ const QuizPage = () => {
     };
   }, [attemptId, activeQuiz, token]);
 
-  const handleGenerate = guard(async () => {
+  const handleGenerate = async () => {
+    if (!guard("Quiz Generation")) return;
     if (!selectedMaterial) {
       setError("Select a material first");
       return;
@@ -170,9 +171,10 @@ const QuizPage = () => {
     } finally {
       setGenerating(false);
     }
-  }, "Quiz Generation");
+  };
 
-  const handleStart = guard(async (quizId) => {
+  const handleStart = async (quizId) => {
+    if (!guard("Start Quiz")) return;
     setError("");
     try {
       const response = await fetch(`${API_BASE_URL}/quiz/start/${quizId}`, {
@@ -188,7 +190,7 @@ const QuizPage = () => {
     } catch (err) {
       setError(err.message);
     }
-  }, "Start Quiz");
+  };
 
   const handleSubmit = async () => {
     if (!attemptId) return;
@@ -359,7 +361,10 @@ const QuizPage = () => {
         <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 rounded-xl text-sm">{success}</div>
       )}
 
-      <section className="mb-7 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <section
+        id="quiz-generator"
+        className="mb-7 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
+      >
         <div className="border-b border-amber-100 bg-amber-50/70 px-5 py-4 dark:border-gray-700 dark:bg-amber-900/10">
           <div className="flex items-center gap-3">
             <span className="rounded-xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
@@ -493,8 +498,42 @@ const QuizPage = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
         </div>
       ) : savedQuizzes.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border p-8 text-center text-gray-500">
-          No generated quizzes yet
+        <div className="rounded-2xl border border-dashed border-amber-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-800 sm:p-10">
+          <Brain className="mx-auto h-10 w-10 text-amber-500 dark:text-amber-300" aria-hidden="true" />
+          <h3 className="mt-3 font-semibold text-slate-900 dark:text-white">
+            {materials.length
+              ? "Your next quiz starts with your study notes"
+              : "Upload study material to get started"}
+          </h3>
+          <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-400">
+            {materials.length
+              ? "Choose one of your materials above and generate a practice quiz. New quizzes will appear here until you complete them."
+              : "Once you upload lecture notes, you can create quizzes from their content and review your past attempts here."}
+          </p>
+          {materials.length ? (
+            <button
+              type="button"
+              onClick={() => {
+                document.getElementById("quiz-generator")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+                document
+                  .querySelector("#quiz-generator select")
+                  ?.focus({ preventScroll: true });
+              }}
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-500 px-4 text-sm font-semibold text-white transition hover:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800"
+            >
+              Create your first quiz
+            </button>
+          ) : (
+            <Link
+              to="/materials"
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white transition hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800"
+            >
+              Go to Study Materials
+            </Link>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
