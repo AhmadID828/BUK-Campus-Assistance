@@ -131,7 +131,7 @@ export default function NotificationBell() {
   };
 
   return (
-    <div ref={containerRef} className="relative ml-auto">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
@@ -141,9 +141,9 @@ export default function NotificationBell() {
           setOpen(willOpen);
           if (willOpen) loadNotifications();
         }}
-        className="relative rounded-xl border border-blue-100 p-2.5 text-slate-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-600 dark:text-slate-100 dark:hover:bg-gray-700"
+        className="relative rounded-xl border border-blue-100 p-2 text-slate-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-600 dark:text-slate-100 dark:hover:bg-gray-700 sm:p-2.5"
       >
-        <Bell size={20} aria-hidden="true" />
+        <Bell size={18} aria-hidden="true" className="sm:h-5 sm:w-5" />
         {unreadCount > 0 && (
           <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
             {unreadCount > 99 ? "99+" : unreadCount}

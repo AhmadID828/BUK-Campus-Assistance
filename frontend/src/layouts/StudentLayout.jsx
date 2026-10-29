@@ -5,6 +5,7 @@ import PendingApprovalBanner from "../components/PendingApprovalBanner";
 import Footer from "../components/Footer";
 import ConfirmDialog from "../components/ConfirmDialog";
 import NotificationBell from "../components/NotificationBell";
+import ThemeSwitcher from "../components/ThemeSwitcher";
 import {
   LayoutDashboard,
   BookOpen,
@@ -279,7 +280,7 @@ const StudentLayout = () => {
           <Link to="/" aria-label="BUK Campus Assistant System home" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
             <img src="/BUk%20logo%202.webp" alt="BUK logo" className="h-9 w-9 rounded-lg bg-white/70 object-contain p-0.5 opacity-90 ring-1 ring-blue-100/80 transition-opacity hover:opacity-100" />
           </Link>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="truncate font-semibold text-slate-900 dark:text-white">
               {location.pathname === "/dashboard"
                 ? `Welcome back${firstName ? `, ${firstName}` : ""}`
@@ -291,7 +292,10 @@ const StudentLayout = () => {
                 .join(" • ")}
             </p>
           </div>
-          <NotificationBell />
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <ThemeSwitcher />
+            <NotificationBell />
+          </div>
         </header>
 
         

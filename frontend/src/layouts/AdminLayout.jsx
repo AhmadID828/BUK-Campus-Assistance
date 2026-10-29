@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Footer from "../components/Footer";
 import ConfirmDialog from "../components/ConfirmDialog";
+import ThemeSwitcher from "../components/ThemeSwitcher";
 import { CHIEF_ADMIN_EMAIL } from "../config";
 
 import {
@@ -209,13 +210,16 @@ const AdminLayout = () => {
           >
             <Menu size={20} />
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="truncate font-semibold text-slate-900 dark:text-white">
               {currentPage?.name || "Admin Dashboard"}
             </h2>
             <p className="truncate text-xs text-slate-500 dark:text-gray-400 md:hidden">
               Signed in as {user?.full_name}
             </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <ThemeSwitcher />
           </div>
         </header>
 

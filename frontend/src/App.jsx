@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { MaterialUploadProvider } from "./context/MaterialUploadContext";
 import { ThemeProvider } from "./context/ThemeContext";
-import ThemeSwitcher from "./components/ThemeSwitcher";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
@@ -169,11 +168,6 @@ function App() {
                 </Routes>
               </Suspense>
             </RouteErrorBoundary>
-            <div className="pointer-events-none fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1.25rem,env(safe-area-inset-right))] z-[600] sm:bottom-6 sm:right-6">
-              <div className="pointer-events-auto">
-                <ThemeSwitcher />
-              </div>
-            </div>
           </MaterialUploadProvider>
         </ThemeProvider>
       </AuthProvider>

@@ -69,13 +69,13 @@ export default function ThemeSwitcher() {
         aria-controls={isOpen ? "theme-menu" : undefined}
         title={`Appearance: ${theme}`}
         onClick={() => setIsOpen((open) => !open)}
-        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/70 bg-white/65 text-slate-600 shadow-sm backdrop-blur-md transition-colors hover:border-blue-200/80 hover:bg-blue-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700/70 dark:bg-slate-900/65 dark:text-slate-300 dark:hover:border-blue-800/80 dark:hover:bg-slate-800/70 dark:focus-visible:ring-offset-slate-900"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/70 bg-white/65 text-slate-600 shadow-sm backdrop-blur-md transition-colors hover:border-blue-200/80 hover:bg-blue-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700/70 dark:bg-slate-900/65 dark:text-slate-300 dark:hover:border-blue-800/80 dark:hover:bg-slate-800/70 dark:focus-visible:ring-offset-slate-900 sm:h-10 sm:w-10"
       >
         <ThemeIcon
           aria-hidden="true"
-          size={18}
+          size={16}
           strokeWidth={2}
-          className="text-blue-600 dark:text-blue-400"
+          className="text-blue-600 dark:text-blue-400 sm:h-[18px] sm:w-[18px]"
         />
       </button>
     </div>
