@@ -222,6 +222,7 @@ async def create_admin_account(
         role="admin",
         is_active=True,
         is_approved=True,
+        must_change_password=True,
     )
     db.add(new_admin)
     db.commit()

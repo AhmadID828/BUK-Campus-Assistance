@@ -7,6 +7,7 @@ import {
   UserRoundX,
 } from "lucide-react";
 import { API_BASE_URL, CHIEF_ADMIN_EMAIL } from "../../config";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { useAuth } from "../../context/AuthContext";
 import {
   exceedsPasswordByteLimit,
@@ -22,6 +23,7 @@ export default function ManageAdmins() {
   const [admins, setAdmins] = useState([]);
   const [loadingAdmins, setLoadingAdmins] = useState(true);
   const [updatingAdminId, setUpdatingAdminId] = useState(null);
+  const [adminAccessToUpdate, setAdminAccessToUpdate] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -104,11 +106,6 @@ export default function ManageAdmins() {
 
   const updateAdminAccess = async (account) => {
     const isActive = account.is_active;
-    const confirmation = isActive
-      ? `Remove administrator access for ${account.email}? Their account and records will be retained.`
-      : `Restore administrator access for ${account.email}?`;
-    if (!window.confirm(confirmation)) return;
-
     setError("");
     setMessage("");
     setUpdatingAdminId(account.id);
@@ -125,6 +122,7 @@ export default function ManageAdmins() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Could not update administrator");
       setMessage(data.message || "Administrator access updated.");
+      setAdminAccessToUpdate(null);
       await loadAdmins();
     } catch (requestError) {
       setError(requestError.message || "Could not reach the server.");
@@ -134,6 +132,30 @@ export default function ManageAdmins() {
   };
 
   return (
+    <>
+    <ConfirmDialog
+      open={Boolean(adminAccessToUpdate)}
+      title={adminAccessToUpdate?.is_active ? "Remove administrator access?" : "Restore administrator access?"}
+      message={
+        adminAccessToUpdate?.is_active
+          ? `Remove administrator access for ${adminAccessToUpdate.email}? Their account and records will be retained.`
+          : adminAccessToUpdate
+            ? `Restore administrator access for ${adminAccessToUpdate.email}?`
+            : ""
+      }
+      confirmLabel={
+        updatingAdminId
+          ? "Updating access..."
+          : adminAccessToUpdate?.is_active
+            ? "Remove access"
+            : "Restore access"
+      }
+      busy={Boolean(updatingAdminId)}
+      onCancel={() => setAdminAccessToUpdate(null)}
+      onConfirm={() => {
+        if (adminAccessToUpdate) void updateAdminAccess(adminAccessToUpdate);
+      }}
+    />
     <section className="mx-auto max-w-3xl">
       <div className="mb-6">
         <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
@@ -145,7 +167,8 @@ export default function ManageAdmins() {
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-300">
           Create administrator accounts for trusted staff. Only the system
-          administrator account can use this page.
+          administrator account can use this page. New administrators must set
+          their own password at first sign-in.
         </p>
       </div>
 
@@ -285,7 +308,7 @@ export default function ManageAdmins() {
                     {!isChief && (
                       <button
                         type="button"
-                        onClick={() => updateAdminAccess(account)}
+                          onClick={() => setAdminAccessToUpdate(account)}
                         disabled={updatingAdminId === account.id}
                         className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50 ${
                           account.is_active
@@ -310,5 +333,6 @@ export default function ManageAdmins() {
         </>
       )}
     </section>
+    </>
   );
 }

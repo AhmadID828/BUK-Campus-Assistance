@@ -14,6 +14,7 @@ const EventsPage = lazy(() => import("./pages/EventsPage"));
 const FAQs = lazy(() => import("./pages/FAQs"));
 const Chat = lazy(() => import("./pages/Chat"));
 const Login = lazy(() => import("./pages/Login"));
+const AdminPasswordSetup = lazy(() => import("./pages/AdminPasswordSetup"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const MapPage = lazy(() => import("./pages/MapPage"));
@@ -96,6 +97,7 @@ function App() {
                     element={<WelcomePage />}
                   />
                   <Route path="/login" element={<Login />} />
+                  <Route path="/admin/set-password" element={<AdminPasswordSetup />} />
                   <Route
                     path="/admin/login"
                     element={<Navigate to="/login" replace />}

@@ -29,7 +29,7 @@ from app.utils.file_extractor import (
 router = APIRouter(prefix="/materials", tags=["Study Materials"])
 
 UPLOAD_DIR = "uploads"
-MAX_UPLOAD_SIZE = 2 * 1024 * 1024
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ def upload_material(
                 if uploaded_size > MAX_UPLOAD_SIZE:
                     raise HTTPException(
                         status_code=413,
-                        detail="Material file must be 2 MB or smaller.",
+                        detail="Material file must be 5 MB or smaller.",
                     )
                 buffer.write(chunk)
     except HTTPException:

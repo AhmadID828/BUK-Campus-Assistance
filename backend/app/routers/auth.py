@@ -49,6 +49,11 @@ class ResetPasswordRequest(BaseModel):
     password: str
 
 
+class InitialAdminPasswordChangeRequest(BaseModel):
+    setup_token: str
+    password: str
+
+
 async def send_reset_email_in_background(recipient: str, reset_link: str) -> None:
     for attempt in range(2):
         try:
@@ -150,6 +155,8 @@ def reset_password(
         raise HTTPException(status_code=400, detail="Invalid reset link")
 
     user.password_hash = hash_password(request.password)
+    if user.role == "admin" and getattr(user, "must_change_password", False):
+        user.must_change_password = False
     db.commit()
     return {"message": "Password reset successfully"}
 
@@ -224,6 +231,26 @@ def login(
             detail="Your account has been deactivated. Contact admin.",
         )
 
+    if getattr(user, "must_change_password", False):
+        setup_token = jwt.encode(
+            {
+                "sub": user.email,
+                "type": "admin_password_setup",
+                "exp": datetime.utcnow() + timedelta(hours=24),
+            },
+            SECRET_KEY,
+            algorithm=ALGORITHM,
+        )
+        return {
+            "password_setup_required": True,
+            "password_setup_token": setup_token,
+            "user": {
+                "full_name": user.full_name,
+                "email": user.email,
+                "role": user.role,
+            },
+        }
+
     # Create JWT token
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
     refresh_token = create_refresh_token(
@@ -243,10 +270,57 @@ def login(
             "role": user.role,
             "is_approved": user.is_approved,
             "is_active": user.is_active,
+            "must_change_password": getattr(user, "must_change_password", False),
             "department": user.department,
             "level": user.level,
         },
     }
+
+
+@router.post("/complete-admin-password-setup")
+def complete_admin_password_setup(
+    request: InitialAdminPasswordChangeRequest,
+    db: Session = Depends(get_db),
+):
+    password_errors = password_validation_errors(request.password)
+    if password_errors:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain " + ", ".join(password_errors),
+        )
+
+    try:
+        payload = jwt.decode(request.setup_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "admin_password_setup":
+            raise HTTPException(status_code=400, detail="Invalid password setup link")
+    except JWTError as error:
+        raise HTTPException(
+            status_code=400,
+            detail="The password setup link is invalid or expired. Sign in again to get a new link.",
+        ) from error
+
+    email = payload.get("sub")
+    user = db.query(User).filter(func.lower(User.email) == str(email).lower()).first()
+    if (
+        not user
+        or user.role != "admin"
+        or user.is_active is False
+        or not getattr(user, "must_change_password", False)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="This password setup link is no longer valid. Sign in again if needed.",
+        )
+    if verify_password(request.password, user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="Choose a password different from your temporary password.",
+        )
+
+    user.password_hash = hash_password(request.password)
+    user.must_change_password = False
+    db.commit()
+    return {"message": "Password set successfully. Sign in with your new password."}
 
 
 @router.post("/refresh")

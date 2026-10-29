@@ -10,8 +10,6 @@ import {
   ChevronRight,
   HelpCircle,
   MapPin,
-  Pause,
-  Play,
   ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -84,7 +82,6 @@ const campusSlides = [
 function CampusCarousel() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [unavailableImages, setUnavailableImages] = useState(() => new Set());
-  const [manuallyPaused, setManuallyPaused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [prefersReducedMotion] = useState(
@@ -93,7 +90,7 @@ function CampusCarousel() {
   const activeSlide = campusSlides[activeIndex];
   const imageUnavailable = unavailableImages.has(activeSlide.image);
   const slideCount = campusSlides.length;
-  const autoRotate = !manuallyPaused && !isHovered && !isFocused && !prefersReducedMotion;
+  const autoRotate = !isHovered && !isFocused && !prefersReducedMotion;
 
   useEffect(() => {
     if (!autoRotate) return undefined;
@@ -144,14 +141,6 @@ function CampusCarousel() {
           Illustrated highlight
         </span>
       )}
-      <button
-        type="button"
-        onClick={() => setManuallyPaused((isPaused) => !isPaused)}
-        aria-label={manuallyPaused ? "Play campus highlights" : "Pause campus highlights"}
-        className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950/55 text-white backdrop-blur hover:bg-slate-950/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-      >
-        {manuallyPaused ? <Play size={17} /> : <Pause size={17} />}
-      </button>
       <div className="absolute inset-x-3 top-1/2 flex -translate-y-1/2 justify-between">
         <button
           type="button"

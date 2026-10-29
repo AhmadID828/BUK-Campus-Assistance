@@ -1,11 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { API_BASE_URL } from "../config";
 import { useAuth } from "./AuthContext";
 
 const MaterialUploadContext = createContext(null);
-const MAX_UPLOAD_SIZE = 2 * 1024 * 1024;
+const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 
 export function MaterialUploadProvider({ children }) {
   const { token } = useAuth();
@@ -18,7 +18,7 @@ export function MaterialUploadProvider({ children }) {
       setUpload({
         status: "error",
         filename: file.name,
-        message: "This file is larger than 2 MB. Choose a smaller file.",
+        message: "This file is larger than 5 MB. Choose a smaller file.",
       });
       return false;
     }
@@ -87,6 +87,12 @@ export function MaterialUploadProvider({ children }) {
 
   const dismissUpload = useCallback(() => setUpload(null), []);
 
+  useEffect(() => {
+    if (upload?.status !== "success") return undefined;
+    const timeoutId = window.setTimeout(dismissUpload, 4000);
+    return () => window.clearTimeout(timeoutId);
+  }, [dismissUpload, upload?.status]);
+
   return (
     <MaterialUploadContext.Provider
       value={{ startUpload, upload, uploadRevision, dismissUpload }}
@@ -96,7 +102,9 @@ export function MaterialUploadProvider({ children }) {
         <div
           role={upload.status === "error" ? "alert" : "status"}
           aria-live="polite"
-          className="fixed bottom-4 left-4 right-4 z-[80] mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:bottom-6"
+          className={`fixed bottom-4 left-4 right-4 z-[80] mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:bottom-6 ${
+            upload.status === "uploading" ? "pointer-events-none" : ""
+          }`}
         >
           {upload.status === "uploading" ? (
             <Loader2 className="h-5 w-5 shrink-0 animate-spin text-blue-600" />

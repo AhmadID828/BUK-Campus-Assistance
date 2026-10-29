@@ -2,7 +2,7 @@ import asyncio
 import json
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,9 +23,12 @@ from app.ai.llm_service import (
     get_embedding,
     semantic_embeddings_enabled,
 )
-from app.ai.campus_qa import answer_campus_question
+from app.ai.campus_qa import answer_campus_question, is_campus_intent
 from app.ai.rag_service import RAGService
 from app.models.auth_rate_limit import AuthRateLimit
+from app.models.campus_location import CampusLocation
+from app.models.emergency_contact import EmergencyContact
+from app.models.event import Event
 from app.models.faq import FAQ
 from app.models.notification import Notification
 from app.models.study_material import StudyMaterial
@@ -125,11 +128,11 @@ class FakeCampusQuery:
 
 
 class FakeCampusDB:
-    def __init__(self, faqs):
-        self.faqs = faqs
+    def __init__(self, rows_by_model=None):
+        self.rows_by_model = rows_by_model or {}
 
     def query(self, model):
-        return FakeCampusQuery(self.faqs if model is FAQ else [])
+        return FakeCampusQuery(self.rows_by_model.get(model, []))
 
 
 class FakePlannerQuery:
@@ -451,6 +454,178 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("lower(users.email)", str(query.condition).lower())
         self.assertEqual(response["user"]["email"], "Admin@buk.edu.ng")
         self.assertEqual(response["user"]["role"], "admin")
+        self.assertNotIn("password_setup_required", response)
+
+    def test_temporary_admin_login_returns_only_password_setup_token(self):
+        account = SimpleNamespace(
+            id=22,
+            full_name="Additional Admin",
+            email="new.admin@example.com",
+            password_hash="temporary-hash",
+            role="admin",
+            is_approved=True,
+            is_active=True,
+            must_change_password=True,
+            registration_number=None,
+            faculty=None,
+            department=None,
+            level=None,
+        )
+
+        class LoginQuery:
+            def filter(self, condition):
+                return self
+
+            def first(self):
+                return account
+
+        credentials = UserLogin(email=account.email, password="Temporary!123")
+        with patch("app.routers.auth.enforce_rate_limit"), patch(
+            "app.routers.auth.clear_rate_limit"
+        ), patch("app.routers.auth.verify_password", return_value=True), patch(
+            "app.routers.auth.jwt.encode", return_value="setup-token"
+        ), patch("app.routers.auth.create_access_token") as create_access, patch(
+            "app.routers.auth.create_refresh_token"
+        ) as create_refresh:
+            response = auth.login(
+                SimpleNamespace(client=SimpleNamespace(host="127.0.0.1")),
+                credentials,
+                SimpleNamespace(query=lambda model: LoginQuery()),
+            )  # type: ignore[arg-type]
+
+        self.assertTrue(response["password_setup_required"])
+        self.assertEqual(response["password_setup_token"], "setup-token")
+        self.assertNotIn("access_token", response)
+        self.assertNotIn("refresh_token", response)
+        create_access.assert_not_called()
+        create_refresh.assert_not_called()
+
+    def test_temporary_admin_password_setup_token_expires_after_24_hours(self):
+        account = SimpleNamespace(
+            id=22,
+            full_name="Additional Admin",
+            email="new.admin@example.com",
+            password_hash="temporary-hash",
+            role="admin",
+            is_approved=True,
+            is_active=True,
+            must_change_password=True,
+            registration_number=None,
+            faculty=None,
+            department=None,
+            level=None,
+        )
+
+        class LoginQuery:
+            def filter(self, condition):
+                return self
+
+            def first(self):
+                return account
+
+        encoded_payload = {}
+        now = datetime.utcnow()
+
+        def capture_token(payload, secret, algorithm):
+            encoded_payload.update(payload)
+            return "setup-token"
+
+        credentials = UserLogin(email=account.email, password="Temporary!123")
+        with patch("app.routers.auth.enforce_rate_limit"), patch(
+            "app.routers.auth.clear_rate_limit"
+        ), patch("app.routers.auth.verify_password", return_value=True), patch(
+            "app.routers.auth.datetime"
+        ) as mocked_datetime, patch(
+            "app.routers.auth.jwt.encode", side_effect=capture_token
+        ):
+            mocked_datetime.utcnow.return_value = now
+            auth.login(
+                SimpleNamespace(client=SimpleNamespace(host="127.0.0.1")),
+                credentials,
+                SimpleNamespace(query=lambda model: LoginQuery()),
+            )  # type: ignore[arg-type]
+
+        self.assertEqual(encoded_payload["type"], "admin_password_setup")
+        self.assertEqual(encoded_payload["exp"], now + timedelta(hours=24))
+
+    def test_temporary_admin_can_set_a_new_password_once(self):
+        account = SimpleNamespace(
+            email="new.admin@example.com",
+            role="admin",
+            is_active=True,
+            must_change_password=True,
+            password_hash="temporary-hash",
+        )
+
+        class SetupQuery:
+            def filter(self, condition):
+                return self
+
+            def first(self):
+                return account
+
+        class SetupDB:
+            def query(self, model):
+                return SetupQuery()
+
+            def commit(self):
+                self.committed = True
+
+        db = SetupDB()
+        request = auth.InitialAdminPasswordChangeRequest(
+            setup_token="valid-setup-token",
+            password="SecureAdmin!456",
+        )
+        with patch(
+            "app.routers.auth.jwt.decode",
+            return_value={
+                "sub": account.email,
+                "type": "admin_password_setup",
+            },
+        ), patch("app.routers.auth.verify_password", return_value=False), patch(
+            "app.routers.auth.hash_password", return_value="new-password-hash"
+        ):
+            result = auth.complete_admin_password_setup(request, db)  # type: ignore[arg-type]
+
+        self.assertFalse(account.must_change_password)
+        self.assertEqual(account.password_hash, "new-password-hash")
+        self.assertTrue(db.committed)
+        self.assertIn("Sign in", result["message"])
+
+    def test_admin_password_setup_token_cannot_be_reused(self):
+        account = SimpleNamespace(
+            email="new.admin@example.com",
+            role="admin",
+            is_active=True,
+            must_change_password=False,
+            password_hash="new-password-hash",
+        )
+
+        class SetupQuery:
+            def filter(self, condition):
+                return self
+
+            def first(self):
+                return account
+
+        request = auth.InitialAdminPasswordChangeRequest(
+            setup_token="replayed-setup-token",
+            password="SecureAdmin!456",
+        )
+        with patch(
+            "app.routers.auth.jwt.decode",
+            return_value={
+                "sub": account.email,
+                "type": "admin_password_setup",
+            },
+        ):
+            with self.assertRaises(HTTPException) as raised:
+                auth.complete_admin_password_setup(
+                    request,
+                    SimpleNamespace(query=lambda model: SetupQuery()),  # type: ignore[arg-type]
+                )
+
+        self.assertEqual(raised.exception.status_code, 400)
 
     def test_only_designated_system_admin_can_manage_admins(self):
         approved_admin = SimpleNamespace(email="Admin@buk.edu.ng", role="admin")
@@ -498,6 +673,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(created[0].role, "admin")
         self.assertTrue(created[0].is_approved)
         self.assertTrue(created[0].is_active)
+        self.assertTrue(created[0].must_change_password)
 
     async def test_admin_registration_rejects_case_variant_duplicate_email(self):
         existing_admin = SimpleNamespace(email="Admin@buk.edu.ng")
@@ -682,6 +858,10 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CampusFAQChatTests(unittest.TestCase):
+    def test_mixed_chat_recognizes_campus_faq_intent(self):
+        self.assertTrue(is_campus_intent("How do I register?"))
+        self.assertFalse(is_campus_intent("Explain recursion"))
+
     def test_material_search_excerpt_removes_postgres_highlight_tags(self):
         excerpt = chat._clean_search_excerpt(
             "<b>Installing</b> <b>illegal</b> software",
@@ -704,7 +884,7 @@ class CampusFAQChatTests(unittest.TestCase):
         self.assertNotIn("setweight_2", compiled)
         self.assertNotIn("setweight_3", compiled)
 
-    def test_campus_question_uses_faq_as_ai_context(self):
+    def test_campus_question_returns_published_faq_answer_directly(self):
         faq = SimpleNamespace(
             id=6,
             question="How do I register?",
@@ -712,23 +892,88 @@ class CampusFAQChatTests(unittest.TestCase):
             category="registration",
             is_active=True,
         )
-        with patch(
-            "app.ai.campus_qa.generate_answer",
-            return_value="Submit the form and await approval.",
-        ) as generate:
-            answer, sources = answer_campus_question(
-                FakeCampusDB([faq]), #type:ignore
-                "How do I register?",
-                provider="groq",
-            )
+        answer, sources = answer_campus_question(
+            FakeCampusDB({FAQ: [faq]}), #type:ignore
+            "How do I register?",
+            provider="groq",
+        )
 
-        self.assertEqual(answer, "Submit the form and await approval.")
+        self.assertEqual(answer, faq.answer)
         self.assertEqual(sources, [{
             "type": "faq",
             "id": 6,
             "question": faq.question,
         }])
-        self.assertIn(faq.answer, generate.call_args.args[0])
+
+    def test_campus_events_come_from_active_upcoming_event_records(self):
+        event = SimpleNamespace(
+            id=4,
+            title="Engineering Career Fair",
+            event_date=date(2026, 11, 12),
+            start_time="10:00",
+            end_time="14:00",
+            location="New Lecture Theatre",
+            description="Meet employers and alumni.",
+            category="Career",
+            organizer="Faculty of Engineering",
+            is_active=True,
+        )
+
+        answer, sources = answer_campus_question(
+            FakeCampusDB({Event: [event]}), #type:ignore
+            "What upcoming events are there?",
+        )
+
+        self.assertIn("Engineering Career Fair", answer)
+        self.assertIn("Date: 2026-11-12", answer)
+        self.assertIn("New Lecture Theatre", answer)
+        self.assertEqual(sources, [{"type": "event", "id": 4, "title": event.title}])
+
+    def test_campus_location_answer_uses_location_records(self):
+        location = SimpleNamespace(
+            id=3,
+            name="Main Library",
+            category="Library",
+            description="The central campus library.",
+            latitude=12.0,
+            longitude=8.5,
+        )
+        answer, sources = answer_campus_question(
+            FakeCampusDB({CampusLocation: [location]}), #type:ignore
+            "Where is the Main Library?",
+        )
+
+        self.assertIn("The central campus library.", answer)
+        self.assertIn("Coordinates: 12.0, 8.5", answer)
+        self.assertEqual(sources, [{"type": "location", "id": 3, "name": location.name}])
+
+    def test_campus_emergency_answer_uses_contact_records(self):
+        contact = SimpleNamespace(
+            id=8,
+            name="Campus Security",
+            category="Security",
+            phone="08001234567",
+            alternative_phone="08007654321",
+            location="Main Gate",
+            description="",
+        )
+        answer, sources = answer_campus_question(
+            FakeCampusDB({EmergencyContact: [contact]}), #type:ignore
+            "What is the emergency contact?",
+        )
+
+        self.assertIn("08001234567", answer)
+        self.assertIn("Main Gate", answer)
+        self.assertEqual(sources[0]["type"], "emergency_contact")
+        self.assertEqual(sources[0]["id"], 8)
+
+    def test_unmatched_campus_question_does_not_call_an_llm(self):
+        answer, sources = answer_campus_question(
+            FakeCampusDB(), "Who won the match?"
+        )
+
+        self.assertIn("couldn't find", answer)
+        self.assertEqual(sources, [])
 
 
 class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
@@ -1629,7 +1874,52 @@ class UploadIndexingTests(unittest.TestCase):
         self.assertTrue(result["full_text_indexed"])
         self.assertIn("disabled for Groq", result["indexing_warning"])
 
-    def test_upload_rejects_files_larger_than_two_megabytes(self):
+    def test_upload_accepts_files_at_five_megabytes(self):
+        course = SimpleNamespace(
+            id=11,
+            course_code="CS201",
+            course_title="Computer Science",
+        )
+
+        class FakeDB:
+            def query(self, model):
+                return SimpleNamespace(
+                    filter=lambda *conditions: SimpleNamespace(first=lambda: course)
+                )
+
+            def add(self, material):
+                self.material = material
+
+            def commit(self):
+                pass
+
+            def refresh(self, material):
+                material.id = 44
+
+        with tempfile.TemporaryDirectory() as directory:
+            upload_file = UploadFile(
+                filename="large-lecture.pdf",
+                file=BytesIO(b"x" * materials.MAX_UPLOAD_SIZE),
+            )
+            db = FakeDB()
+            with (
+                patch.object(materials, "UPLOAD_DIR", directory),
+                patch.object(materials, "extract_text_from_file", return_value="Lecture text"),
+                patch.object(materials, "semantic_embeddings_enabled", return_value=False),
+                patch.object(materials, "update_search_vector"),
+            ):
+                result = materials.upload_material(
+                    file=upload_file,
+                    title="Large lecture",
+                    course_id=11,
+                    user=SimpleNamespace(id=2, full_name="Student"), # type: ignore
+                    db=db, # type: ignore
+                )
+
+        self.assertEqual(result["material_id"], 44)
+        self.assertTrue(result["full_text_indexed"])
+
+    def test_upload_rejects_files_larger_than_five_megabytes(self):
         class FakeDB:
             def query(self, model):
                 return UploadIndexingTests()._course_query()
@@ -1654,7 +1944,7 @@ class UploadIndexingTests(unittest.TestCase):
                 self.assertEqual(list(Path(directory).iterdir()), [])
 
         self.assertEqual(raised.exception.status_code, 413)
-        self.assertEqual(raised.exception.detail, "Material file must be 2 MB or smaller.")
+        self.assertEqual(raised.exception.detail, "Material file must be 5 MB or smaller.")
 
 
 class EventRsvpStatisticsTests(unittest.TestCase):

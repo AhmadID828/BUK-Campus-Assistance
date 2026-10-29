@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, Eye, EyeOff, HelpCircle, Loader2, MapPin } from "lucide-react";
 import { API_BASE_URL, CHIEF_ADMIN_EMAIL } from "../config";
 import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoggedIn, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,6 +47,17 @@ const Login = () => {
         throw new Error(
           "This account is not configured as an administrator. Please contact the system administrator to restore its admin access."
         );
+      }
+
+      if (data.password_setup_required) {
+        if (!data.password_setup_token) {
+          throw new Error("Password setup is required, but the setup token was not provided. Please try signing in again.");
+        }
+        navigate(
+          `/admin/set-password?token=${encodeURIComponent(data.password_setup_token)}`,
+          { replace: true },
+        );
+        return;
       }
 
       if (data.refresh_token) {
@@ -92,6 +104,11 @@ const Login = () => {
           {error && (
             <div role="alert" className="mb-5 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
               <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+            </div>
+          )}
+          {location.state?.passwordSetupComplete && (
+            <div role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+              Password set successfully. Sign in with your new password.
             </div>
           )}
 

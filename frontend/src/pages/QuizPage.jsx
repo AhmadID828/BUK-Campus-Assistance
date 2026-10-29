@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useAuth } from "../context/AuthContext";
 import { API_BASE_URL } from "../config";
@@ -12,12 +12,16 @@ import {
 
 const QuizPage = () => {
   const { token } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { guard, showLockedModal, lockedFeatureName, closeModal } = useApprovalGuard();
 
   const [materials, setMaterials] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [savedQuizzes, setSavedQuizzes] = useState([]);
-  const [selectedMaterial, setSelectedMaterial] = useState("");
+  const [selectedMaterial, setSelectedMaterial] = useState(
+    () => String(location.state?.materialId ?? ""),
+  );
   const [questionCount, setQuestionCount] = useState("3");
   const [provider, setProvider] = useState("groq");
   const [loading, setLoading] = useState(true);
@@ -73,6 +77,12 @@ const QuizPage = () => {
     const fetchTimer = window.setTimeout(fetchData, 0);
     return () => window.clearTimeout(fetchTimer);
   }, [token]);
+
+  useEffect(() => {
+    if (location.state?.materialId != null) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   // Timer
   useEffect(() => {

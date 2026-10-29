@@ -6,7 +6,7 @@ from sqlalchemy import func, literal_column
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import Session
 
-from app.ai.campus_qa import answer_campus_question
+from app.ai.campus_qa import answer_campus_question, is_campus_intent
 from app.ai.llm_service import GROQ_MODEL, OLLAMA_MODEL, llm_service
 from app.ai.rag_service import rag_service
 from app.database import get_db
@@ -249,8 +249,27 @@ def unified_ask(
     )
 
     try:
-        if session_type == "campus":
-            answer, sources = answer_campus_question(db, content, provider, model)
+        if session_type in {"campus", "mixed"}:
+            campus_answer, campus_sources = answer_campus_question(
+                db,
+                content,
+                provider,
+                model,
+            )
+            if (
+                session_type == "campus"
+                or campus_sources
+                or is_campus_intent(content)
+            ):
+                answer, sources = campus_answer, campus_sources
+            else:
+                answer, sources = answer_academic_question(
+                    current_user,
+                    content,
+                    provider,
+                    model,
+                    db=db,
+                )
         else:
             answer, sources = answer_academic_question(
                 current_user,

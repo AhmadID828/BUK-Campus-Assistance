@@ -44,6 +44,7 @@ class UserResponse(BaseModel):
     role: str = "student"
     is_approved: bool = False
     is_active: bool = True
+    must_change_password: bool = False
     created_at: Optional[datetime] = None
 
     class Config:

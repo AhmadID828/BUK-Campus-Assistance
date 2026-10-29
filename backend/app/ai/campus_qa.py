@@ -1,13 +1,120 @@
 import re
+from datetime import date
 from typing import Any
 
-from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
-from app.ai.llm_service import generate_answer
 from app.models.campus_location import CampusLocation
 from app.models.emergency_contact import EmergencyContact
+from app.models.event import Event
 from app.models.faq import FAQ
+
+
+_STOP_WORDS = {
+    "about", "are", "can", "could", "do", "does", "for", "from", "how",
+    "i", "in", "is", "it", "me", "of", "on", "please", "tell", "the",
+    "there", "this", "to", "what", "when", "where", "which", "who", "would",
+}
+_EVENT_WORDS = {"event", "events", "happening", "upcoming"}
+_EMERGENCY_WORDS = {
+    "ambulance", "clinic", "emergency", "hospital", "police", "safety",
+    "security", "sos",
+}
+_LOCATION_WORDS = {
+    "address", "building", "direction", "directions", "find", "locate",
+    "location", "map", "near", "where",
+}
+_CAMPUS_TERMS = {
+    "admission", "bursary", "campus", "clearance", "department", "faculty",
+    "hostel", "office", "registration", "register", "student", "transcript",
+    "tuition", "university",
+}
+_NOT_FOUND = (
+    "I couldn't find that information in the current campus records. "
+    "Please check with the relevant university office or ask an administrator "
+    "to update the campus information."
+)
+
+
+def _terms(question: str, excluded: set[str] | None = None) -> list[str]:
+    excluded_words = _STOP_WORDS | (excluded or set())
+    return [
+        term
+        for term in dict.fromkeys(re.findall(r"[a-z0-9]+", question.lower()))
+        if len(term) > 2 and term not in excluded_words
+    ]
+
+
+def is_campus_intent(question: str) -> bool:
+    words = set(re.findall(r"[a-z0-9]+", question.lower()))
+    return bool(
+        words.intersection(
+            _CAMPUS_TERMS | _EVENT_WORDS | _EMERGENCY_WORDS | _LOCATION_WORDS
+            | {"contact", "contacts", "phone", "number", "faq", "faqs"}
+        )
+    )
+
+
+def _matching_rows(
+    db: Session,
+    model: Any,
+    fields: tuple[Any, ...],
+    terms: list[str],
+    *,
+    active_field: Any,
+    future_events: bool = False,
+) -> list[Any]:
+    query = db.query(model).filter(active_field.is_(True))
+    if future_events:
+        query = query.filter(Event.event_date >= date.today())
+    if terms:
+        filters = [field.ilike(f"%{term}%") for field in fields for term in terms]
+        query = query.filter(or_(*filters))
+    return query.all()
+
+
+def _score(row: Any, fields: tuple[str, ...], terms: list[str]) -> int:
+    searchable_text = " ".join(
+        str(getattr(row, field, "") or "").lower() for field in fields
+    )
+    return sum(term in searchable_text for term in terms)
+
+
+def _ranked(rows: list[Any], fields: tuple[str, ...], terms: list[str]) -> list[Any]:
+    return sorted(
+        (row for row in rows if _score(row, fields, terms) > 0),
+        key=lambda row: (-_score(row, fields, terms), getattr(row, "id", 0)),
+    )
+
+
+def _source(source_type: str, row: Any, **extra: Any) -> dict[str, Any]:
+    return {"type": source_type, "id": row.id, **extra}
+
+
+def _format_location(location: CampusLocation) -> str:
+    details = [f"{location.name} is a {location.category} on campus."]
+    if location.description:
+        details.append(location.description)
+    details.append(
+        f"Coordinates: {location.latitude}, {location.longitude}. "
+        "You can get walking directions using the map feature."
+    )
+    return "\n".join(details)
+
+
+def _format_event(event: Event) -> str:
+    details = [event.title, f"Date: {event.event_date}"]
+    if event.start_time:
+        time = event.start_time
+        if event.end_time:
+            time += f"–{event.end_time}"
+        details.append(f"Time: {time}")
+    if event.location:
+        details.append(f"Location: {event.location}")
+    if event.description:
+        details.append(event.description)
+    return " | ".join(details)
 
 
 def answer_campus_question(
@@ -16,124 +123,127 @@ def answer_campus_question(
     provider: str | None = None,
     model: str | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """
-    Hybrid approach:
-    1. Match active campus locations.
-    2. Return active emergency contacts for safety-related questions.
-    3. Fall back to the configured LLM for general campus questions.
-    """
+    """Answer campus questions only with active, admin-managed database records."""
+    del provider, model
 
-    question_lower = question.strip().lower()
-    if not question_lower:
+    question = question.strip()
+    if not question:
         return "Please enter a campus question.", []
 
-    # ----- 1. Location name matching -----
-    location_terms = re.findall(r"[a-z0-9]+", question_lower)
-    location_filters = [
-        field.ilike(f"%{term}%")
-        for term in location_terms
-        for field in (
-            CampusLocation.name,
-            CampusLocation.category,
-            CampusLocation.description,
+    question_lower = question.lower()
+    event_intent = bool(_EVENT_WORDS.intersection(re.findall(r"[a-z0-9]+", question_lower)))
+    question_words = set(re.findall(r"[a-z0-9]+", question_lower))
+    location_intent = bool(question_words.intersection(_LOCATION_WORDS))
+    emergency_intent = bool(
+        question_words.intersection(
+            _EMERGENCY_WORDS - {"clinic", "hospital"}
         )
-    ]
-    locations = (
-        db.query(CampusLocation)
-        .filter(CampusLocation.is_active.is_(True), or_(*location_filters))
-        .limit(3)
-        .all()
-        if location_filters
-        else []
+        or question_words.intersection({"contact", "contacts", "phone", "number"})
+        or (
+            question_words.intersection({"clinic", "hospital"})
+            and not location_intent
+        )
     )
 
-    if locations:
-        loc = locations[0]
-        answer = (
-            f"{loc.name} is a {loc.category} on campus.\n"
-            f"{loc.description or ''}\n"
-            f"Coordinates: {loc.latitude}, {loc.longitude}\n"
-            f"You can get walking directions using the map feature."
+    if emergency_intent:
+        terms = _terms(question, _EMERGENCY_WORDS | {"contact", "contacts", "phone"})
+        contacts = _matching_rows(
+            db,
+            EmergencyContact,
+            (EmergencyContact.name, EmergencyContact.category, EmergencyContact.location, EmergencyContact.description),
+            terms,
+            active_field=EmergencyContact.is_active,
         )
-        return answer, [{"type": "location", "id": loc.id, "name": loc.name}]
-
-    # ----- 2. Emergency contacts -----
-    if any(word in question_lower for word in ["emergency", "security", "clinic", "help", "sos"]):
-        contacts = (
-            db.query(EmergencyContact)
-            .filter(EmergencyContact.is_active.is_(True))
-            .order_by(EmergencyContact.name)
-            .limit(5)
-            .all()
+        ranked_contacts = _ranked(
+            contacts,
+            ("name", "category", "location", "description"),
+            terms,
         )
+        if terms and ranked_contacts:
+            contacts = ranked_contacts
+        contacts = sorted(contacts, key=lambda contact: (contact.name.lower(), contact.id))[:5]
         if contacts:
             lines = [
                 f"- {contact.name} ({contact.category or 'Support'}): "
-                f"{contact.phone or 'N/A'}"
+                f"{contact.phone}"
+                + (f" / {contact.alternative_phone}" if contact.alternative_phone else "")
+                + (f"; location: {contact.location}" if contact.location else "")
                 for contact in contacts
             ]
-            answer = "Here are the important emergency contacts:\n\n" + "\n".join(lines)
-            return answer, [
-                {
-                    "type": "emergency_contact",
-                    "id": contact.id,
-                    "name": contact.name,
-                }
+            return "Emergency contacts from campus records:\n\n" + "\n".join(lines), [
+                _source("emergency_contact", contact, name=contact.name)
                 for contact in contacts
             ]
 
-    # ----- 3. Use published FAQs as context for an AI-generated answer -----
-    stop_words = {"about", "can", "does", "how", "is", "tell", "the", "what", "when", "where", "who"}
-    faq_terms = [
-        term for term in location_terms
-        if len(term) > 3 and term not in stop_words
-    ]
-    faq_filters = [
-        field.ilike(f"%{term}%")
-        for term in faq_terms
-        for field in (FAQ.question, FAQ.answer, FAQ.category)
-    ]
-    matching_faqs = (
-        db.query(FAQ)
-        .filter(FAQ.is_active.is_(True), or_(*faq_filters))
-        .limit(4)
-        .all()
-        if faq_filters
-        else []
+    if event_intent:
+        terms = _terms(question, _EVENT_WORDS)
+        events = _matching_rows(
+            db,
+            Event,
+            (Event.title, Event.description, Event.category, Event.location, Event.organizer),
+            terms,
+            active_field=Event.is_active,
+            future_events=True,
+        )
+        if terms:
+            events = _ranked(
+                events,
+                ("title", "description", "category", "location", "organizer"),
+                terms,
+            )
+        else:
+            events = sorted(events, key=lambda event: (event.event_date, event.id))
+        events = events[:5]
+        if events:
+            return "Upcoming events from campus records:\n\n" + "\n".join(
+                f"- {_format_event(event)}" for event in events
+            ), [
+                _source("event", event, title=event.title)
+                for event in events
+            ]
+        return "There are no matching upcoming events in the current campus records.", []
+
+    terms = _terms(
+        question,
+        _LOCATION_WORDS
+        | _EVENT_WORDS
+        | (_EMERGENCY_WORDS - {"clinic", "hospital"}),
     )
-    faq_context = "\n\n".join(
-        f"FAQ: {faq.question}\nAnswer: {faq.answer}"
-        for faq in matching_faqs
+    if not terms:
+        return _NOT_FOUND, []
+
+    locations = _matching_rows(
+        db,
+        CampusLocation,
+        (CampusLocation.name, CampusLocation.category, CampusLocation.description),
+        terms,
+        active_field=CampusLocation.is_active,
     )
+    ranked_locations = _ranked(locations, ("name", "category", "description"), terms)
 
-    # ----- 4. Fall back to general campus guidance when no FAQ matches -----
-    campus_context = """
-    You are the campus assistant for Bayero University Kano (BUK).
-    You help students with locations, administrative procedures, events and emergency information.
-    If you do not know something specific, advise the student to check the Student Affairs Division or their departmental office.
-    """
-
-    prompt = f"""{campus_context}
-Use the published FAQs below as your trusted source when they are relevant.
-If no FAQ answers the question, answer briefly with general knowledge and do not invent BUK-specific facts.
-Keep your answer concise.
-
-Published FAQs:
-{faq_context or "No matching published FAQ was found."}
-
-Student question: {question}
-
-Answer helpfully and concisely:"""
-
-    answer = generate_answer(
-        prompt,
-        max_tokens=180,
-        provider=provider,
-        model=model,
-        timeout=120.0,
+    faqs = _matching_rows(
+        db,
+        FAQ,
+        (FAQ.question, FAQ.answer, FAQ.category),
+        terms,
+        active_field=FAQ.is_active,
     )
-    sources = [
-        {"type": "faq", "id": faq.id, "question": faq.question}
-        for faq in matching_faqs
-    ]
-    return answer, sources or [{"type": "llm_fallback"}]
+    ranked_faqs = _ranked(faqs, ("question", "answer", "category"), terms)
+
+    if location_intent and ranked_locations:
+        location = ranked_locations[0]
+        return _format_location(location), [
+            _source("location", location, name=location.name)
+        ]
+
+    if ranked_faqs:
+        faq = ranked_faqs[0]
+        return faq.answer, [_source("faq", faq, question=faq.question)]
+
+    if ranked_locations:
+        location = ranked_locations[0]
+        return _format_location(location), [
+            _source("location", location, name=location.name)
+        ]
+
+    return _NOT_FOUND, []

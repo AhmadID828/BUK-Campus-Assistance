@@ -137,17 +137,21 @@ deploying the course-linked materials and planner changes, and
 `backend/migrations/004_add_old_campus_location.sql` to add the BUK Old Campus
 map marker, `backend/migrations/005_add_notifications.sql` to create the
 notification table, and `backend/migrations/006_add_auth_rate_limits.sql`
-before deploying database-backed authentication rate limits. The notification
-bell shows unread counts and supports marking individual notifications or all
-notifications as read.
+before deploying database-backed authentication rate limits. Apply
+`backend/migrations/007_require_new_admin_password_setup.sql` before deploying
+the required first-login password setup for newly created administrators. The
+notification bell shows unread counts and supports marking individual
+notifications or all notifications as read.
 
 ## Accounts and access
 
 Students sign up and wait for an administrator to approve their account.
 Administrators use the same login page. Creating additional administrators is
-restricted to the designated chief administrator. Admin recovery and database
-maintenance scripts are operational tools: review them carefully, back up the
-target database, and never run a hosted-database script against local data.
+restricted to the designated chief administrator. Newly created administrators
+must replace their temporary password before accessing the system. Admin
+recovery and database maintenance scripts are operational tools: review them
+carefully, back up the target database, and never run a hosted-database script
+against local data.
 
 The campus map and FAQs are available without signing in. Chat, quizzes,
 materials, and planning tools require an approved student account.

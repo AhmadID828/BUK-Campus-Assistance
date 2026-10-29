@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useMaterialUpload } from "../context/MaterialUploadContext";
 import { API_BASE_URL } from "../config";
@@ -7,9 +8,22 @@ import useApprovalGuard from "../hooks/useApprovalGuard";
 import ConfirmDialog from "../components/ConfirmDialog";
 import PageHeader from "../components/PageHeader";
 import LockedFeatureModal from "../components/LockedFeatureModal";
-import { BookOpen, CheckCircle, FileText, Plus, Search, Sparkles, Trash2, Upload, X } from "lucide-react";
+import {
+  BookOpen,
+  Brain,
+  CheckCircle,
+  FileText,
+  MessageCircle,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 
 const MaterialsPage = () => {
+  const navigate = useNavigate();
   const { token } = useAuth();
   const { startUpload, upload, uploadRevision } = useMaterialUpload();
   const { guard, showLockedModal, lockedFeatureName, closeModal } =
@@ -42,9 +56,9 @@ const MaterialsPage = () => {
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files?.[0] ?? null;
-    if (selectedFile && selectedFile.size > 2 * 1024 * 1024) {
+    if (selectedFile && selectedFile.size > 5 * 1024 * 1024) {
       setFile(null);
-      setError("This file is larger than 2 MB. Choose a smaller file.");
+      setError("This file is larger than 5 MB. Choose a smaller file.");
       event.target.value = "";
       return;
     }
@@ -527,7 +541,7 @@ const MaterialsPage = () => {
             className="w-full cursor-pointer px-3 py-2 file:cursor-pointer bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm"
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            PDF, DOCX or PPTX · Maximum file size: 2 MB
+            PDF, DOCX or PPTX · Maximum file size: 5 MB
           </p>
         </div>
         <div className="md:col-span-2">
@@ -657,18 +671,50 @@ const MaterialsPage = () => {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => handleSummarize(material.id)}
-                disabled={summarizingId === material.id}
-                className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-lg text-sm"
-              >
-                <Sparkles className="w-4 h-4" />
-                {summarizingId === material.id ? "Summarising..." : "Summarise"}
-              </button>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate("/chat", {
+                      state: {
+                        initialPrompt: `Help me study "${material.title}" from my uploaded material. Explain the key concepts and answer my questions using my notes.`,
+                      },
+                    })
+                  }
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-blue-900/25 dark:text-blue-300 dark:hover:bg-blue-900/45 sm:text-sm"
+                  aria-label={`Ask AI about ${material.title}`}
+                >
+                  <MessageCircle className="h-4 w-4 shrink-0" />
+                  <span>Ask AI</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSummarize(material.id)}
+                  disabled={summarizingId === material.id}
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:cursor-wait disabled:opacity-60 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40 sm:text-sm"
+                  aria-label={`Summarise ${material.title}`}
+                >
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  <span>{summarizingId === material.id ? "Working..." : "Summarise"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate("/quiz", {
+                      state: { materialId: material.id },
+                    })
+                  }
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-50 px-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:bg-emerald-900/25 dark:text-emerald-300 dark:hover:bg-emerald-900/45 sm:text-sm"
+                  aria-label={`Take a quiz on ${material.title}`}
+                >
+                  <Brain className="h-4 w-4 shrink-0" />
+                  <span>Take quiz</span>
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setMaterialToDelete(material)}
-                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30"
+                className="mt-2 flex min-h-9 w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete material

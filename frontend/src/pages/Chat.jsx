@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Send,
   Bot,
@@ -35,15 +36,18 @@ function readableChatText(value) {
 
 export default function Chat() {
   const { token } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const initialPrompt = location.state?.initialPrompt;
   const [messages, setMessages] = useState([
     {
       role: "assistant",
       content: "Hello! I’m the BUK Campus Assistant System. Ask me anything about your courses or campus (locations, FAQs, emergencies, events).",
     },
   ]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialPrompt || "");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState("mixed"); // mixed | academic | campus
+  const [mode, setMode] = useState(initialPrompt ? "academic" : "mixed"); // mixed | academic | campus
   const [provider, setProvider] = useState("groq");
   const [model, setModel] = useState("openai/gpt-oss-20b");
   const [sessions, setSessions] = useState([]);
@@ -54,6 +58,13 @@ export default function Chat() {
   const requestControllerRef = useRef(null);
   const abortReasonRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!initialPrompt) return;
+
+    inputRef.current?.focus();
+    navigate(location.pathname, { replace: true, state: null });
+  }, [initialPrompt, location.pathname, navigate]);
 
   const loadSessions = async () => {
     if (!token) return;
