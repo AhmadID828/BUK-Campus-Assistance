@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Circle,
+  CircleMarker,
+  MapContainer,
+  Marker,
+  Popup,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import { LocateFixed, MapPin, Navigation, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,9 +18,8 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 const BUK_CENTER = [11.9758, 8.4203];
 const DEFAULT_ZOOM = 16;
-const TARGET_LOCATION_ACCURACY = 20;
 const MAX_LOCATION_ACCURACY = 50;
-const LOCATION_TIMEOUT_MS = 20000;
+const LOCATION_TIMEOUT_MS = 30000;
 
 async function getLocationErrorMessage(error) {
   if (!window.isSecureContext) {
@@ -21,10 +29,15 @@ async function getLocationErrorMessage(error) {
   if (error?.code === 1) {
     let permissionState;
     try {
-      const permission = await navigator.permissions?.query({ name: "geolocation" });
+      const permission = await navigator.permissions?.query({
+        name: "geolocation",
+      });
       permissionState = permission?.state;
     } catch (permissionError) {
-      console.warn("Unable to inspect the browser's location permission state.", permissionError);
+      console.warn(
+        "Unable to inspect the browser's location permission state.",
+        permissionError,
+      );
     }
 
     if (permissionState === "granted") {
@@ -43,13 +56,20 @@ async function getLocationErrorMessage(error) {
     return "The location request timed out. Check device location services and try again somewhere with a clearer GPS signal.";
   }
 
-  return error?.message || "Could not determine your location. Check that location services are enabled and try again.";
+  return (
+    error?.message ||
+    "Could not determine your location. Check that location services are enabled and try again."
+  );
 }
 
 function getAccuratePosition() {
   return new Promise((resolve, reject) => {
     if (!window.isSecureContext) {
-      reject(new Error("Location requires a secure connection. Open this map over HTTPS (or localhost) and try again."));
+      reject(
+        new Error(
+          "Location requires a secure connection. Open this map over HTTPS (or localhost) and try again.",
+        ),
+      );
       return;
     }
 
@@ -71,13 +91,15 @@ function getAccuratePosition() {
     };
 
     const timeoutId = window.setTimeout(() => {
-      if (bestPosition) {
+      if (bestPosition?.coords.accuracy <= MAX_LOCATION_ACCURACY) {
         finish(resolve, bestPosition);
         return;
       }
       finish(
         reject,
-        new Error("Could not determine your location. Check location services and try again."),
+        new Error(
+          "GPS accuracy Could not determine your location, Move outdoors, enable device location services, and try again. You can also choose a start point on the map.",
+        ),
       );
     }, LOCATION_TIMEOUT_MS);
 
@@ -90,15 +112,25 @@ function getAccuratePosition() {
         ) {
           return;
         }
-        if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) {
+        if (
+          !bestPosition ||
+          position.coords.accuracy < bestPosition.coords.accuracy
+        ) {
           bestPosition = position;
         }
-        if (position.coords.accuracy <= TARGET_LOCATION_ACCURACY) {
+        if (position.coords.accuracy <= MAX_LOCATION_ACCURACY) {
           finish(resolve, position);
         }
       },
       (error) => {
-        if (error.code === 1) finish(reject, error);
+        if (
+          bestPosition?.coords.accuracy <= MAX_LOCATION_ACCURACY &&
+          error.code !== 1
+        ) {
+          finish(resolve, bestPosition);
+          return;
+        }
+        finish(reject, error);
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: LOCATION_TIMEOUT_MS },
     );
@@ -133,12 +165,21 @@ function ChangeView({ location }) {
   return null;
 }
 
-function UserLocationView({ position, following }) {
+function UserLocationView({ position, following, followCamera, focusRequest }) {
   const map = useMap();
+  const previousFocusRequest = useRef(focusRequest);
 
   useEffect(() => {
-    if (position && following) map.panTo(position, { animate: true, duration: 0.4 });
-  }, [position, following, map]);
+    const shouldFocus = focusRequest !== previousFocusRequest.current;
+    previousFocusRequest.current = focusRequest;
+    if (!position) return;
+
+    if (following && followCamera) {
+      map.panTo(position, { animate: true, duration: 0.4 });
+    } else if (shouldFocus) {
+      map.flyTo(position, Math.max(map.getZoom(), 17), { duration: 0.6 });
+    }
+  }, [position, following, followCamera, focusRequest, map]);
 
   return null;
 }
@@ -166,18 +207,40 @@ function LocateButton({ onLocate }) {
   );
 }
 
-function RouteStepFocus({ step }) {
+function RouteStepFocus({ step, index }) {
   const map = useMap();
+  const latitude = step?.location?.[0];
+  const longitude = step?.location?.[1];
 
   useEffect(() => {
-    if (step?.location) map.flyTo(step.location, Math.max(map.getZoom(), 17), { duration: 0.5 });
-  }, [map, step]);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      map.flyTo([latitude, longitude], Math.max(map.getZoom(), 17), {
+        duration: 0.5,
+      });
+    }
+  }, [map, latitude, longitude, index]);
 
-  return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  return (
+    <CircleMarker
+      center={[latitude, longitude]}
+      radius={11}
+      pathOptions={{
+        color: "#ffffff",
+        weight: 3,
+        fillColor: "#f97316",
+        fillOpacity: 1,
+      }}
+    >
+      <Popup>Direction {index + 1}</Popup>
+    </CircleMarker>
+  );
 }
 
 function formatDistance(distance) {
-  if (distance < 1000) return `${Math.max(10, Math.round(distance / 10) * 10)} m`;
+  if (distance < 1000)
+    return `${Math.max(10, Math.round(distance / 10) * 10)} m`;
   return `${(distance / 1000).toFixed(1)} km`;
 }
 
@@ -199,10 +262,84 @@ function getStepInstruction(step) {
     return `${maneuver.exit ? `At the roundabout, take exit ${maneuver.exit}` : "At the roundabout, continue"}${road}`;
   }
   if (maneuver.type === "turn") return `Turn ${modifier || "ahead"}${road}`;
-  if (maneuver.type === "continue") return `Continue ${modifier || "straight"}${road}`;
+  if (maneuver.type === "continue")
+    return `Continue ${modifier || "straight"}${road}`;
   if (maneuver.type === "merge") return `Merge ${modifier || "ahead"}${road}`;
   if (maneuver.type === "fork") return `Keep ${modifier || "ahead"}${road}`;
   return `${modifier ? `Go ${modifier}` : "Continue"}${road}`;
+}
+
+function scoreWalkingRoute(route, shortestDistance) {
+  const steps = route.legs?.flatMap((leg) => leg.steps || []) || [];
+  let namedDistance = 0;
+  let referenceDistance = 0;
+  let longestNamedRoad = 0;
+  let currentRoad = "";
+  let currentRoadDistance = 0;
+  let turns = 0;
+
+  for (const step of steps) {
+    const distance = Number(step.distance) || 0;
+    const roadName = (step.ref || step.name || "").trim().toLowerCase();
+    const reference = (step.ref || "").trim();
+
+    if (roadName) {
+      namedDistance += distance;
+      if (reference) referenceDistance += distance;
+      if (roadName === currentRoad) {
+        currentRoadDistance += distance;
+      } else {
+        longestNamedRoad = Math.max(longestNamedRoad, currentRoadDistance);
+        currentRoad = roadName;
+        currentRoadDistance = distance;
+      }
+    } else {
+      longestNamedRoad = Math.max(longestNamedRoad, currentRoadDistance);
+      currentRoad = "";
+      currentRoadDistance = 0;
+    }
+
+    if (
+      ["turn", "fork", "roundabout", "rotary"].includes(step.maneuver?.type)
+    ) {
+      turns += 1;
+    }
+  }
+  longestNamedRoad = Math.max(longestNamedRoad, currentRoadDistance);
+
+  const distance = Number(route.distance) || 0;
+  if (!distance || !shortestDistance) return Number.NEGATIVE_INFINITY;
+
+  const detourRatio = distance / shortestDistance;
+  if (detourRatio > 1.5) return Number.NEGATIVE_INFINITY;
+
+  return (
+    (namedDistance / distance) * 100 +
+    (referenceDistance / distance) * 20 +
+    Math.min(longestNamedRoad / shortestDistance, 1) * 20 -
+    (detourRatio - 1) * 80 -
+    turns * 0.4
+  );
+}
+
+function choosePreferredWalkingRoute(routes) {
+  const candidates = routes.filter(
+    (route) => route?.geometry && route.legs?.some((leg) => leg.steps?.length),
+  );
+  const shortestDistance = Math.min(
+    ...candidates.map(
+      (route) => Number(route.distance) || Number.POSITIVE_INFINITY,
+    ),
+  );
+  if (!Number.isFinite(shortestDistance)) return null;
+
+  return candidates.reduce((preferred, route) => {
+    if (!preferred) return route;
+    return scoreWalkingRoute(route, shortestDistance) >
+      scoreWalkingRoute(preferred, shortestDistance)
+      ? route
+      : preferred;
+  }, null);
 }
 
 function MapSizeInvalidator() {
@@ -239,7 +376,7 @@ function RoutingControl({ from, to, onError, onRoute }) {
       try {
         const coordinates = `${from[1]},${from[0]};${to[1]},${to[0]}`;
         const response = await fetch(
-          `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true`,
+          `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordinates}?overview=full&geometries=geojson&steps=true&alternatives=3`,
           { signal: controller.signal },
         );
 
@@ -249,21 +386,35 @@ function RoutingControl({ from, to, onError, onRoute }) {
         if (data.code !== "Ok") {
           throw new Error(data.message || "No walkable route was found.");
         }
-        const geometry = data.routes?.[0]?.geometry;
-        if (!geometry) throw new Error("No walking route was found.");
-        const route = data.routes[0];
+        const route = choosePreferredWalkingRoute(data.routes || []);
+        if (!route)
+          throw new Error(
+            "No walkable route with directions was found. Try another starting point.",
+          );
+        const geometry = route.geometry;
         const steps = route.legs?.flatMap((leg) => leg.steps || []) || [];
-        if (steps.length === 0) throw new Error("The walking service returned no route instructions.");
+        if (steps.length === 0)
+          throw new Error(
+            "The walking service returned no route instructions.",
+          );
         onRoute({
           distance: route.distance,
           duration: route.duration,
-          steps: steps.map((step) => ({
-            distance: step.distance,
-            instruction: getStepInstruction(step),
-            location: step.maneuver?.location
-              ? [step.maneuver.location[1], step.maneuver.location[0]]
-              : null,
-          })),
+          steps: steps.map((step) => {
+            const maneuverLocation = step.maneuver?.location;
+            const firstGeometryPoint = step.geometry?.coordinates?.[0];
+            const location = maneuverLocation
+              ? [maneuverLocation[1], maneuverLocation[0]]
+              : firstGeometryPoint
+                ? [firstGeometryPoint[1], firstGeometryPoint[0]]
+                : null;
+
+            return {
+              distance: step.distance,
+              instruction: getStepInstruction(step),
+              location,
+            };
+          }),
         });
 
         routeLine = L.geoJSON(geometry, {
@@ -317,6 +468,8 @@ function CampusMap({
   const [activeStep, setActiveStep] = useState(-1);
   const [routeLoading, setRouteLoading] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [followCamera, setFollowCamera] = useState(true);
+  const [locationFocusRequest, setLocationFocusRequest] = useState(0);
 
   const stopFollowing = useCallback(() => {
     setFollowing(false);
@@ -337,50 +490,57 @@ function CampusMap({
   }, [selectedLocation?.id, stopFollowing]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleDirections = useCallback((location) => {
-    const target = [Number(location.latitude), Number(location.longitude)];
-    if (!target.every(Number.isFinite)) {
-      setRouteLoading(false);
-      setMessage("This location does not have valid map coordinates.");
-      return;
-    }
-
-    stopFollowing();
-    setRouteDetails(null);
-    setRouteLoading(true);
-    setRouteOrigin(null);
-    setActiveStep(-1);
-    setDestinationName(location.name);
-    setDestination(target);
-    setUserPosition(null);
-    setUserAccuracy(null);
-    setManualOrigin(false);
-    setChoosingOrigin(false);
-
-    getAccuratePosition().then(
-      (position) => {
-        const origin = [position.coords.latitude, position.coords.longitude];
-        setUserPosition(origin);
-        setUserAccuracy(position.coords.accuracy);
-        setRouteOrigin(origin);
-        setMessage(
-          `Using available location (${formatAccuracy(position.coords.accuracy)} accuracy). Calculating route to ${location.name}...`,
-        );
-      },
-      async (error) => {
+  const handleDirections = useCallback(
+    (location) => {
+      const target = [Number(location.latitude), Number(location.longitude)];
+      if (!target.every(Number.isFinite)) {
         setRouteLoading(false);
-        setMessage(await getLocationErrorMessage(error));
-      },
-    );
-  }, [stopFollowing]);
+        setMessage("This location does not have valid map coordinates.");
+        return;
+      }
+
+      stopFollowing();
+      setRouteDetails(null);
+      setRouteLoading(true);
+      setRouteOrigin(null);
+      setActiveStep(-1);
+      setDestinationName(location.name);
+      setDestination(target);
+      setUserPosition(null);
+      setUserAccuracy(null);
+      setManualOrigin(false);
+      setChoosingOrigin(false);
+
+      getAccuratePosition().then(
+        (position) => {
+          const origin = [position.coords.latitude, position.coords.longitude];
+          setUserPosition(origin);
+          setUserAccuracy(position.coords.accuracy);
+          setRouteOrigin(origin);
+          setMessage(
+            `Using available location (${formatAccuracy(position.coords.accuracy)} accuracy). Finding a walking route to ${location.name} that favors named main streets...`,
+          );
+        },
+        async (error) => {
+          setRouteLoading(false);
+          setMessage(await getLocationErrorMessage(error));
+        },
+      );
+    },
+    [stopFollowing],
+  );
 
   const handleLocate = () => {
-    setMessage("Getting a precise GPS fix...");
+    setMessage("Requesting a high-accuracy GPS fix...");
     getAccuratePosition().then(
       (position) => {
+        const accuracy = position.coords.accuracy;
         setUserPosition([position.coords.latitude, position.coords.longitude]);
-        setUserAccuracy(position.coords.accuracy);
-        setMessage(`Your location is shown on the map (accuracy ${formatAccuracy(position.coords.accuracy)}).`);
+        setUserAccuracy(accuracy);
+        setLocationFocusRequest((request) => request + 1);
+        setMessage(
+          `Your location is shown on the map (GPS accuracy ${formatAccuracy(accuracy)}).`,
+        );
       },
       async (error) => setMessage(await getLocationErrorMessage(error)),
     );
@@ -391,36 +551,44 @@ function CampusMap({
     setMessage(error);
   }, []);
 
-  const handleRoute = useCallback((route) => {
-    setRouteLoading(false);
-    setRouteDetails(route);
-    setActiveStep(-1);
-    if (route) {
-      setMessage(
-        manualOrigin
-          ? "Walking route ready from your selected start point. Follow the steps manually."
-          : "Walking route ready. Start navigation when you are ready.",
-      );
-    }
-  }, [manualOrigin]);
+  const handleRoute = useCallback(
+    (route) => {
+      setRouteLoading(false);
+      setRouteDetails(route);
+      setActiveStep(-1);
+      if (route) {
+        setMessage(
+          manualOrigin
+            ? "Walking route ready from your selected start point. Follow the steps manually."
+            : "Walking route ready. Start navigation when you are ready.",
+        );
+      }
+    },
+    [manualOrigin],
+  );
 
-  const handleManualOriginPick = useCallback((origin) => {
-    stopFollowing();
-    setUserPosition(origin);
-    setUserAccuracy(null);
-    setRouteOrigin(origin);
-    setManualOrigin(true);
-    setChoosingOrigin(false);
-    setRouteDetails(null);
-    setRouteLoading(true);
-    setActiveStep(-1);
-    setMessage("Start point selected. Calculating walking directions...");
-  }, [stopFollowing]);
+  const handleManualOriginPick = useCallback(
+    (origin) => {
+      stopFollowing();
+      setUserPosition(origin);
+      setUserAccuracy(null);
+      setRouteOrigin(origin);
+      setManualOrigin(true);
+      setChoosingOrigin(false);
+      setRouteDetails(null);
+      setRouteLoading(true);
+      setActiveStep(-1);
+      setMessage(
+        "Start point selected. Finding a walking route that favors named main streets...",
+      );
+    },
+    [stopFollowing],
+  );
 
   const handleManualOriginDrag = (event) => {
     const { lat, lng } = event.target.getLatLng();
     handleManualOriginPick([lat, lng]);
-    setMessage("Start point moved. Recalculating walking directions...");
+    setMessage("Start point moved. Recalculating the walking route...");
   };
 
   const chooseManualOrigin = (location) => {
@@ -441,43 +609,62 @@ function CampusMap({
     setDestination(target);
     setDestinationName(location.name);
     setChoosingOrigin(true);
-    setMessage("Click your starting point on the map. You can drag its marker to adjust it.");
+    setMessage(
+      "Click your starting point on the map. You can drag its marker to adjust it.",
+    );
   };
 
   const startFollowing = () => {
     if (!routeDetails?.steps.length) return;
     if (manualOrigin) {
       setActiveStep((step) => (step < 0 ? 0 : step));
-      setMessage("This route starts from a manually selected point. Follow the directions below.");
-      return;
-    }
-    if (userAccuracy > MAX_LOCATION_ACCURACY) {
-      setActiveStep((step) => (step < 0 ? 0 : step));
-      setMessage("Location accuracy is low. Follow the route steps manually, or select a start point on the map for a more useful route.");
+      setMessage(
+        "This route starts from a manually selected point. Follow the directions below.",
+      );
       return;
     }
     if (!navigator.geolocation) {
       setActiveStep((step) => (step < 0 ? 0 : step));
-      setMessage("Live navigation needs browser location access. You can still follow the steps manually.");
+      setMessage(
+        "Live navigation needs browser location access. You can still follow the steps manually.",
+      );
       return;
     }
 
     setActiveStep((step) => (step < 0 ? 0 : step));
+    setFollowCamera(true);
     setFollowing(true);
-    setMessage("Live walking navigation started. Keep this page open while you walk.");
+    setMessage(
+      userAccuracy > MAX_LOCATION_ACCURACY
+        ? "Live location tracking started, but GPS accuracy is low. Your position will update; use the route steps manually until accuracy improves."
+        : "Live walking navigation started. Keep this page open while you walk.",
+    );
   };
 
   useEffect(() => {
-    if (!following || !navigator.geolocation) return;
+    if (!following || manualOrigin || !navigator.geolocation) return;
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        if (position.coords.accuracy > MAX_LOCATION_ACCURACY) return;
-        const currentPosition = [position.coords.latitude, position.coords.longitude];
+        if (position.coords.accuracy > MAX_LOCATION_ACCURACY) {
+          setMessage(
+            `GPS accuracy is currently ${formatAccuracy(position.coords.accuracy)}. Keeping the last reliable position until the signal improves.`,
+          );
+          return;
+        }
+        const currentPosition = [
+          position.coords.latitude,
+          position.coords.longitude,
+        ];
         setUserPosition(currentPosition);
         setUserAccuracy(position.coords.accuracy);
 
-        if (!routeDetails?.steps.length || activeStep < 0) return;
+        if (
+          position.coords.accuracy > MAX_LOCATION_ACCURACY ||
+          !routeDetails?.steps.length ||
+          activeStep < 0
+        )
+          return;
         const isFinalStep = activeStep >= routeDetails.steps.length - 1;
         const nextIndex = activeStep + 1;
         const nextLocation = isFinalStep
@@ -493,7 +680,10 @@ function CampusMap({
         const haversine =
           Math.sin(deltaLat / 2) ** 2 +
           Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-        const distance = 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+        const distance =
+          6371000 *
+          2 *
+          Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 
         if (distance <= 30) {
           if (isFinalStep) {
@@ -501,6 +691,7 @@ function CampusMap({
             setMessage("You have arrived at your destination.");
           } else {
             setActiveStep(nextIndex);
+            setFollowCamera(true);
             setMessage(routeDetails.steps[nextIndex].instruction);
           }
         }
@@ -517,12 +708,13 @@ function CampusMap({
       { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [activeStep, destination, following, routeDetails]);
+  }, [activeStep, destination, following, manualOrigin, routeDetails]);
 
   const followNextStep = () => {
     if (!routeDetails?.steps?.length) return;
     const nextStep = Math.min(activeStep + 1, routeDetails.steps.length - 1);
     setActiveStep(nextStep);
+    setFollowCamera(false);
     setMessage(routeDetails.steps[nextStep].instruction);
   };
 
@@ -530,11 +722,13 @@ function CampusMap({
     if (!routeDetails?.steps?.length) return;
     const previousStep = Math.max(activeStep - 1, 0);
     setActiveStep(previousStep);
+    setFollowCamera(false);
     setMessage(routeDetails.steps[previousStep].instruction);
   };
 
   const selectStep = (index) => {
     setActiveStep(index);
+    setFollowCamera(false);
     setMessage(routeDetails.steps[index].instruction);
   };
 
@@ -580,7 +774,9 @@ function CampusMap({
         {selectedLocation && (
           <div className="mb-3 flex min-w-0 flex-col gap-3 rounded-xl border border-blue-100 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
             <div className="min-w-0">
-              <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedLocation.name}</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-100">
+                {selectedLocation.name}
+              </p>
               <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
                 {selectedLocation.description || "Campus destination"}
               </p>
@@ -619,209 +815,278 @@ function CampusMap({
           </div>
         )}
 
-        <div className={routeDetails ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : ""}>
+        <div
+          className={
+            routeDetails ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : ""
+          }
+        >
           {routeDetails && (
             <div className="order-2 min-w-0 rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-slate-700 dark:bg-slate-800 sm:p-4 lg:order-2 lg:col-span-1 lg:col-start-3 lg:row-start-1">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h3 className="font-semibold text-slate-800 dark:text-slate-100">Directions to {destinationName}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Walking · {formatDistance(routeDetails.distance)} · {formatDuration(routeDetails.duration)}
-                  {manualOrigin
-                    ? " · Selected start point"
-                    : userAccuracy != null && ` · GPS ${formatAccuracy(userAccuracy)}`}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-slate-900 dark:text-blue-300">
-                  {following ? "Navigating" : activeStep < 0 ? "Ready" : `Step ${activeStep + 1}/${routeDetails.steps.length}`}
-                </span>
-                <button
-                  type="button"
-                  onClick={clearRoute}
-                  className="rounded-lg p-1 text-slate-500 transition hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
-                  aria-label="Clear directions"
-                  title="Clear directions"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {activeStep >= 0 && routeDetails.steps[activeStep] && (
-              <div className="mt-3 rounded-xl border border-blue-300 bg-white p-3 shadow-sm dark:border-blue-800 dark:bg-slate-900">
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
-                  Current direction
-                </p>
-                <p className="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100">
-                  {routeDetails.steps[activeStep].instruction}
-                </p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Segment distance: {formatDistance(routeDetails.steps[activeStep].distance)}
-                </p>
-              </div>
-            )}
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={followPreviousStep}
-                disabled={activeStep <= 0 || following}
-                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={following ? stopFollowing : startFollowing}
-                disabled={manualOrigin && following}
-                className={`rounded-lg px-3 py-2 text-xs font-medium text-white transition ${
-                  following
-                    ? "bg-slate-600 hover:bg-slate-700"
-                    : "bg-blue-600 hover:bg-blue-700"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                {following ? "Stop live navigation" : manualOrigin ? "Follow directions" : "Start live navigation"}
-              </button>
-              <button
-                type="button"
-                onClick={followNextStep}
-                disabled={activeStep >= routeDetails.steps.length - 1}
-                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {activeStep < 0 ? "Show first step" : "Next direction"}
-              </button>
-            </div>
-
-            <ol className="mt-3 max-h-40 space-y-2 overflow-y-auto pr-1 sm:max-h-56" aria-label="Route steps">
-              {routeDetails.steps.map((step, index) => (
-                <li
-                  key={`${step.instruction}-${index}`}
-                  className={`rounded-lg transition ${
-                    activeStep === index
-                    ? "border border-blue-300 bg-blue-100 shadow-sm dark:border-blue-700 dark:bg-blue-950/60"
-                    : "bg-white dark:bg-slate-900"
-                  }`}
-                >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                    Directions to {destinationName}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Walking · {formatDistance(routeDetails.distance)} ·{" "}
+                    {formatDuration(routeDetails.duration)}
+                    {manualOrigin
+                      ? " · Selected start point"
+                      : userAccuracy != null &&
+                        ` · GPS ${formatAccuracy(userAccuracy)}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-slate-900 dark:text-blue-300">
+                    {manualOrigin
+                      ? activeStep < 0
+                        ? "Manual route"
+                        : `Step ${activeStep + 1}/${routeDetails.steps.length}`
+                      : following
+                        ? "Navigating"
+                        : activeStep < 0
+                          ? "Ready"
+                          : `Step ${activeStep + 1}/${routeDetails.steps.length}`}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => selectStep(index)}
-                    className="flex w-full items-start gap-3 p-2.5 text-left"
-                    aria-label={`Show route step ${index + 1}`}
+                    onClick={clearRoute}
+                    className="rounded-lg p-1 text-slate-500 transition hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
+                    aria-label="Clear directions"
+                    title="Clear directions"
                   >
-                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                      {index + 1}
-                    </span>
-                    <span className="min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-200">{step.instruction}</span>
-                    <span className="whitespace-nowrap text-xs font-medium text-blue-700 dark:text-blue-300">
-                      {formatDistance(step.distance)}
-                    </span>
+                    <X className="h-4 w-4" />
                   </button>
-                </li>
-              ))}
-            </ol>
+                </div>
+              </div>
+
+              {activeStep >= 0 && routeDetails.steps[activeStep] && (
+                <div className="mt-3 rounded-xl border border-blue-300 bg-white p-3 shadow-sm dark:border-blue-800 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                    Current direction
+                  </p>
+                  <p className="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100">
+                    {routeDetails.steps[activeStep].instruction}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Segment distance:{" "}
+                    {formatDistance(routeDetails.steps[activeStep].distance)}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={followPreviousStep}
+                  disabled={activeStep <= 0 || following}
+                  className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={
+                    manualOrigin
+                      ? startFollowing
+                      : following
+                        ? stopFollowing
+                        : startFollowing
+                  }
+                  disabled={manualOrigin && activeStep >= 0}
+                  className={`rounded-lg px-3 py-2 text-xs font-medium text-white transition ${
+                    following
+                      ? "bg-slate-600 hover:bg-slate-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {manualOrigin
+                    ? activeStep < 0
+                      ? "Start manual directions"
+                      : "Following steps manually"
+                    : following
+                      ? "Stop live navigation"
+                      : "Start live navigation"}
+                </button>
+                <button
+                  type="button"
+                  onClick={followNextStep}
+                  disabled={activeStep >= routeDetails.steps.length - 1}
+                  className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition hover:bg-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {activeStep < 0 ? "Show first step" : "Next direction"}
+                </button>
+              </div>
+
+              <ol
+                className="mt-3 max-h-40 space-y-2 overflow-y-auto pr-1 sm:max-h-56"
+                aria-label="Route steps"
+              >
+                {routeDetails.steps.map((step, index) => (
+                  <li
+                    key={`${step.instruction}-${index}`}
+                    className={`rounded-lg transition ${
+                      activeStep === index
+                        ? "border border-blue-300 bg-blue-100 shadow-sm dark:border-blue-700 dark:bg-blue-950/60"
+                        : "bg-white dark:bg-slate-900"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => selectStep(index)}
+                      className="flex w-full items-start gap-3 p-2.5 text-left"
+                      aria-label={`Show route step ${index + 1}`}
+                    >
+                      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-200">
+                        {step.instruction}
+                      </span>
+                      <span className="whitespace-nowrap text-xs font-medium text-blue-700 dark:text-blue-300">
+                        {formatDistance(step.distance)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
 
-        <div className={`relative order-1 h-[min(52dvh,440px)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-xl sm:h-[min(65vh,600px)] ${routeDetails ? "lg:order-1 lg:col-span-2 lg:col-start-1 lg:row-start-1" : ""}`}>
-          <LocateButton onLocate={handleLocate} />
-          {choosingOrigin && (
-            <div className="absolute left-2 top-2 z-[400] max-w-[calc(100%-4.5rem)] rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-md dark:bg-slate-900 dark:text-slate-200 sm:left-3 sm:top-3">
-              Click the map to choose your start point
-              <button
-                type="button"
-                onClick={() => {
-                  setChoosingOrigin(false);
-                  setMessage("");
-                }}
-                className="ml-2 font-semibold text-blue-700 underline dark:text-blue-300"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-          <MapContainer
-            center={BUK_CENTER}
-            zoom={DEFAULT_ZOOM}
-            style={{ height: "100%", width: "100%" }}
+          <div
+            className={`relative order-1 h-[min(52dvh,440px)] min-h-[280px] w-full min-w-0 overflow-hidden rounded-xl sm:h-[min(65vh,600px)] ${routeDetails ? "lg:order-1 lg:col-span-2 lg:col-start-1 lg:row-start-1" : ""}`}
           >
-            <MapSizeInvalidator />
-            <MapOriginPicker enabled={choosingOrigin} onPick={handleManualOriginPick} />
-            {selectedLocation && <ChangeView location={selectedLocation} />}
-            <UserLocationView position={userPosition} following={following} />
-            <TileLayer
-              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap contributors <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            />
-            {locations.map((location) => (
-              <Marker
-                key={location.id}
-                position={[parseFloat(location.latitude), parseFloat(location.longitude)]}
-                eventHandlers={{
-                  click: (event) => choosingOrigin
-                    ? handleManualOriginPick([event.latlng.lat, event.latlng.lng])
-                    : handleSelect(location),
-                }}
-              >
-                <Popup>
-                  <strong>{location.name}</strong><br />
-                  <span>{location.category}</span><br />
-                  <button type="button" className="secondary" onClick={() => handleSelect(location)}>
-                    Select destination
-                  </button>
-                </Popup>
-              </Marker>
-            ))}
-            {userPosition && userAccuracy != null && (
-              <Circle
-                center={userPosition}
-                radius={userAccuracy}
-                pathOptions={{
-                  color: "#2563eb",
-                  weight: 1,
-                  fillColor: "#3b82f6",
-                  fillOpacity: 0.12,
-                }}
-              />
-            )}
-            {userPosition && (
-              manualOrigin ? (
-                <Marker
-                  position={userPosition}
-                  draggable
-                  eventHandlers={{ dragend: handleManualOriginDrag }}
+            <LocateButton onLocate={handleLocate} />
+            {choosingOrigin && (
+              <div className="absolute left-2 top-2 z-[400] max-w-[calc(100%-4.5rem)] rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-md dark:bg-slate-900 dark:text-slate-200 sm:left-3 sm:top-3">
+                Click the map to choose your start point
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChoosingOrigin(false);
+                    setMessage("");
+                  }}
+                  className="ml-2 font-semibold text-blue-700 underline dark:text-blue-300"
                 >
-                  <Popup>Selected start point · drag to adjust</Popup>
-                </Marker>
-              ) : (
-                <CircleMarker
-                  center={userPosition}
-                  radius={8}
-                  pathOptions={{ color: "#ffffff", weight: 3, fillColor: "#2563eb", fillOpacity: 1 }}
+                  Cancel
+                </button>
+              </div>
+            )}
+            <MapContainer
+              center={BUK_CENTER}
+              zoom={DEFAULT_ZOOM}
+              style={{ height: "100%", width: "100%" }}
+            >
+              <MapSizeInvalidator />
+              <MapOriginPicker
+                enabled={choosingOrigin}
+                onPick={handleManualOriginPick}
+              />
+              {selectedLocation && <ChangeView location={selectedLocation} />}
+              <UserLocationView
+                position={userPosition}
+                following={following}
+                followCamera={followCamera}
+                focusRequest={locationFocusRequest}
+              />
+              <TileLayer
+                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; OpenStreetMap contributors <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              />
+              {locations.map((location) => (
+                <Marker
+                  key={location.id}
+                  position={[
+                    parseFloat(location.latitude),
+                    parseFloat(location.longitude),
+                  ]}
+                  eventHandlers={{
+                    click: (event) =>
+                      choosingOrigin
+                        ? handleManualOriginPick([
+                            event.latlng.lat,
+                            event.latlng.lng,
+                          ])
+                        : handleSelect(location),
+                  }}
                 >
                   <Popup>
-                    Your current location
-                    {userAccuracy != null && <><br />Reported accuracy: {formatAccuracy(userAccuracy)}</>}
+                    <strong>{location.name}</strong>
+                    <br />
+                    <span>{location.category}</span>
+                    <br />
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => handleSelect(location)}
+                    >
+                      Select destination
+                    </button>
                   </Popup>
-                </CircleMarker>
-              )
-            )}
-            {destination && (
-              <Marker position={destination}>
-                <Popup>{destinationName}</Popup>
-              </Marker>
-            )}
-            <RoutingControl
-              from={routeOrigin}
-              to={destination}
-              onError={handleRouteError}
-              onRoute={handleRoute}
-            />
-            {activeStep >= 0 && routeDetails?.steps[activeStep] && (
-              <RouteStepFocus step={routeDetails.steps[activeStep]} />
-            )}
-          </MapContainer>
-        </div>
+                </Marker>
+              ))}
+              {userPosition && userAccuracy != null && (
+                <Circle
+                  center={userPosition}
+                  radius={userAccuracy}
+                  pathOptions={{
+                    color: "#2563eb",
+                    weight: 1,
+                    fillColor: "#3b82f6",
+                    fillOpacity: 0.12,
+                  }}
+                />
+              )}
+              {userPosition &&
+                (manualOrigin ? (
+                  <Marker
+                    position={userPosition}
+                    draggable
+                    eventHandlers={{ dragend: handleManualOriginDrag }}
+                  >
+                    <Popup>Selected start point · drag to adjust</Popup>
+                  </Marker>
+                ) : (
+                  <CircleMarker
+                    center={userPosition}
+                    radius={8}
+                    pathOptions={{
+                      color: "#ffffff",
+                      weight: 3,
+                      fillColor: "#2563eb",
+                      fillOpacity: 1,
+                    }}
+                  >
+                    <Popup>
+                      Your current location
+                      {userAccuracy != null && (
+                        <>
+                          <br />
+                          Reported accuracy: {formatAccuracy(userAccuracy)}
+                        </>
+                      )}
+                    </Popup>
+                  </CircleMarker>
+                ))}
+              {destination && (
+                <Marker position={destination}>
+                  <Popup>{destinationName}</Popup>
+                </Marker>
+              )}
+              <RoutingControl
+                from={routeOrigin}
+                to={destination}
+                onError={handleRouteError}
+                onRoute={handleRoute}
+              />
+              {activeStep >= 0 && routeDetails?.steps[activeStep] && (
+                <RouteStepFocus
+                  step={routeDetails.steps[activeStep]}
+                  index={activeStep}
+                />
+              )}
+            </MapContainer>
+          </div>
         </div>
       </div>
     </section>
