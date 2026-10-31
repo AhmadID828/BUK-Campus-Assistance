@@ -33,6 +33,7 @@ const MapPage = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reloadLocations, setReloadLocations] = useState(0);
   const mapSectionRef = useRef(null);
 
   useEffect(() => {
@@ -56,19 +57,32 @@ const MapPage = () => {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
-        if (!response.ok) throw new Error("Failed to load campus locations");
+        if (!response.ok) {
+          throw new Error(
+            `Failed to load campus locations (HTTP ${response.status}).`,
+          );
+        }
 
         const data = await response.json();
-        setLocations(data.locations ?? []);
+        if (!Array.isArray(data.locations)) {
+          throw new Error(
+            "The campus service returned an invalid locations list.",
+          );
+        }
+        setLocations(data.locations);
       } catch (fetchError) {
-        setError(fetchError.message);
+        setError(
+          fetchError instanceof TypeError
+            ? "Could not connect to the campus service. Check that the backend is running and VITE_API_URL points to it."
+            : fetchError.message,
+        );
       } finally {
         setLoading(false);
       }
     };
 
     fetchLocations();
-  }, [token]);
+  }, [token, reloadLocations]);
 
   const searchTerm = search.trim().toLowerCase();
   const filteredLocations = locations.filter((location) => {
@@ -121,8 +135,18 @@ const MapPage = () => {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-300">
-          {error}
+        <div
+          role="alert"
+          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-300"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setReloadLocations((attempt) => attempt + 1)}
+            className="rounded-lg border border-red-200 px-3 py-1.5 font-medium hover:bg-red-100 dark:border-red-800 dark:hover:bg-red-900/50"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -216,21 +240,15 @@ const MapPage = () => {
       </div>
 
       <div ref={mapSectionRef} className="mb-5 scroll-mt-4 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        {loading ? (
-          <div className="flex h-[min(52dvh,440px)] min-h-[280px] items-center justify-center text-slate-500 dark:text-slate-400 sm:h-[min(65vh,600px)]">
-            Loading map...
-          </div>
-        ) : (
-          <CampusMap
-            locations={visibleLocations}
-            selectedLocation={selectedLocation}
-            onSelectLocation={setSelectedLocation}
-            onClearSelection={() => {
-              setSelectedLocation(null);
-              setSearch("");
-            }}
-          />
-        )}
+        <CampusMap
+          locations={visibleLocations}
+          selectedLocation={selectedLocation}
+          onSelectLocation={setSelectedLocation}
+          onClearSelection={() => {
+            setSelectedLocation(null);
+            setSearch("");
+          }}
+        />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -242,9 +260,15 @@ const MapPage = () => {
             </h2>
           </div>
           <div className="grid grid-cols-1 divide-y divide-slate-50 dark:divide-slate-800 md:grid-cols-2 lg:grid-cols-3">
-            {!loading && visibleLocations.length === 0 ? (
+            {loading ? (
               <p className="col-span-full py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-                No locations found
+                Loading campus locations...
+              </p>
+            ) : visibleLocations.length === 0 ? (
+              <p className="col-span-full py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                {error
+                  ? "Locations could not be loaded. The map is still available."
+                  : "No locations found"}
               </p>
             ) : (
               visibleLocations.map((location) => {

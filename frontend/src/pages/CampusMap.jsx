@@ -19,7 +19,8 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 const BUK_CENTER = [11.9758, 8.4203];
 const DEFAULT_ZOOM = 16;
 const MAX_LOCATION_ACCURACY = 50;
-const LOCATION_TIMEOUT_MS = 30000;
+const MAX_FALLBACK_LOCATION_ACCURACY = 250;
+const LOCATION_TIMEOUT_MS = 15000;
 
 async function getLocationErrorMessage(error) {
   if (!window.isSecureContext) {
@@ -91,14 +92,14 @@ function getAccuratePosition() {
     };
 
     const timeoutId = window.setTimeout(() => {
-      if (bestPosition?.coords.accuracy <= MAX_LOCATION_ACCURACY) {
+      if (bestPosition?.coords.accuracy <= MAX_FALLBACK_LOCATION_ACCURACY) {
         finish(resolve, bestPosition);
         return;
       }
       finish(
         reject,
         new Error(
-          "GPS accuracy Could not determine your location, Move outdoors, enable device location services, and try again. You can also choose a start point on the map.",
+          "Could not determine your location in time.",
         ),
       );
     }, LOCATION_TIMEOUT_MS);
@@ -124,7 +125,7 @@ function getAccuratePosition() {
       },
       (error) => {
         if (
-          bestPosition?.coords.accuracy <= MAX_LOCATION_ACCURACY &&
+          bestPosition?.coords.accuracy <= MAX_FALLBACK_LOCATION_ACCURACY &&
           error.code !== 1
         ) {
           finish(resolve, bestPosition);
@@ -247,6 +248,19 @@ function formatDistance(distance) {
 function formatDuration(duration) {
   const minutes = Math.max(1, Math.round(duration / 60));
   return `${minutes} min`;
+}
+
+function hasValidCoordinates(location) {
+  const latitude = Number(location.latitude);
+  const longitude = Number(location.longitude);
+  return (
+    Number.isFinite(latitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
 }
 
 function getStepInstruction(step) {
@@ -518,12 +532,17 @@ function CampusMap({
           setUserAccuracy(position.coords.accuracy);
           setRouteOrigin(origin);
           setMessage(
-            `Using available location (${formatAccuracy(position.coords.accuracy)} accuracy). Finding a walking route to ${location.name} that favors named main streets...`,
+            position.coords.accuracy <= MAX_LOCATION_ACCURACY
+              ? `GPS accuracy ${formatAccuracy(position.coords.accuracy)}. Finding a walking route to ${location.name} that favors named main streets...`
+              : `Using an approximate GPS fix (${formatAccuracy(position.coords.accuracy)} accuracy). Finding a walking route to ${location.name}; choose “Choose start on map” if the marker is misplaced.`,
           );
         },
-        async (error) => {
+        () => {
           setRouteLoading(false);
-          setMessage(await getLocationErrorMessage(error));
+          setChoosingOrigin(true);
+          setMessage(
+            "Could not get a reliable GPS fix. Choose your starting point on the map to continue.",
+          );
         },
       );
     },
@@ -539,7 +558,9 @@ function CampusMap({
         setUserAccuracy(accuracy);
         setLocationFocusRequest((request) => request + 1);
         setMessage(
-          `Your location is shown on the map (GPS accuracy ${formatAccuracy(accuracy)}).`,
+          accuracy <= MAX_LOCATION_ACCURACY
+            ? `Your location is shown on the map (GPS accuracy ${formatAccuracy(accuracy)}).`
+            : `Your approximate location is shown on the map (GPS accuracy ${formatAccuracy(accuracy)}). Choose a start point on the map if the marker is misplaced.`,
         );
       },
       async (error) => setMessage(await getLocationErrorMessage(error)),
@@ -646,24 +667,36 @@ function CampusMap({
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        if (position.coords.accuracy > MAX_LOCATION_ACCURACY) {
+        const { latitude, longitude, accuracy } = position.coords;
+        if (
+          !Number.isFinite(latitude) ||
+          !Number.isFinite(longitude) ||
+          !Number.isFinite(accuracy) ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180
+        ) {
+          return;
+        }
+
+        if (accuracy > MAX_FALLBACK_LOCATION_ACCURACY) {
           setMessage(
-            `GPS accuracy is currently ${formatAccuracy(position.coords.accuracy)}. Keeping the last reliable position until the signal improves.`,
+            `GPS accuracy is currently ${formatAccuracy(accuracy)}. Keeping the last usable position until the signal improves.`,
           );
           return;
         }
-        const currentPosition = [
-          position.coords.latitude,
-          position.coords.longitude,
-        ];
+        const currentPosition = [latitude, longitude];
         setUserPosition(currentPosition);
-        setUserAccuracy(position.coords.accuracy);
+        setUserAccuracy(accuracy);
 
-        if (
-          position.coords.accuracy > MAX_LOCATION_ACCURACY ||
-          !routeDetails?.steps.length ||
-          activeStep < 0
-        )
+        if (accuracy > MAX_LOCATION_ACCURACY) {
+          setMessage(
+            `Your position is updating (GPS accuracy ${formatAccuracy(accuracy)}). Automatic turn updates will resume when the signal is more precise.`,
+          );
+          return;
+        }
+        if (!routeDetails?.steps.length || activeStep < 0)
           return;
         const isFinalStep = activeStep >= routeDetails.steps.length - 1;
         const nextIndex = activeStep + 1;
@@ -993,12 +1026,12 @@ function CampusMap({
                 url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; OpenStreetMap contributors <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               />
-              {locations.map((location) => (
+              {locations.filter(hasValidCoordinates).map((location) => (
                 <Marker
                   key={location.id}
                   position={[
-                    parseFloat(location.latitude),
-                    parseFloat(location.longitude),
+                    Number(location.latitude),
+                    Number(location.longitude),
                   ]}
                   eventHandlers={{
                     click: (event) =>
