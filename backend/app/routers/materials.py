@@ -6,6 +6,7 @@ import os
 import shutil
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -318,6 +319,12 @@ async def get_materials(
                 "course_code": material.course.course_code if material.course else None,
                 "course_title": material.course.course_title if material.course else None,
                 "file_path": material.file_path,
+                "file_name": (
+                    os.path.basename(material.file_path)
+                    .removeprefix(f"{user.id}_")
+                    if material.file_path
+                    else None
+                ),
                 "rank": float(row[1]) if search else None,
             }
         )
@@ -334,6 +341,61 @@ async def get_materials(
         "limit": limit,
         "search": search,
     }
+
+
+@router.get("/{material_id}/preview")
+async def preview_material(
+    material_id: int,
+    user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
+):
+    material = db.query(StudyMaterial).filter(
+        StudyMaterial.id == material_id,
+        StudyMaterial.owner_id == user.id,
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    filename = os.path.basename(material.file_path) if material.file_path else None
+    if filename and filename.startswith(f"{user.id}_"):
+        filename = filename[len(f"{user.id}_"):]
+    return {
+        "material_id": material.id,
+        "title": material.title,
+        "filename": filename,
+        "content": material.content or "",
+    }
+
+
+@router.get("/{material_id}/file")
+async def get_material_file(
+    material_id: int,
+    user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
+):
+    material = db.query(StudyMaterial).filter(
+        StudyMaterial.id == material_id,
+        StudyMaterial.owner_id == user.id,
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+    if not material.file_path or not os.path.isfile(material.file_path):
+        raise HTTPException(status_code=404, detail="Uploaded file is no longer available")
+
+    extension = os.path.splitext(material.file_path)[1].lower()
+    if extension != ".pdf":
+        raise HTTPException(
+            status_code=415,
+            detail="Inline file viewing is available for PDF files only.",
+        )
+
+    return FileResponse(
+        material.file_path,
+        media_type="application/pdf",
+        filename=f"material-{material.id}.pdf",
+        content_disposition_type="inline",
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.delete("/{material_id}")

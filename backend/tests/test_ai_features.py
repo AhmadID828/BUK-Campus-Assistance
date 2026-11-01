@@ -977,6 +977,45 @@ class CampusFAQChatTests(unittest.TestCase):
 
 
 class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
+    def test_revision_schedule_uses_one_three_and_seven_day_intervals(self):
+        reviewed_at = datetime(2026, 10, 22, 14, 30)
+        topic = SimpleNamespace(
+            id=3,
+            material_id=20,
+            title="Revision",
+            course=SimpleNamespace(course_code="CS201"),
+            last_reviewed_at=reviewed_at,
+        )
+        unreviewed_topic = SimpleNamespace(last_reviewed_at=None)
+
+        schedule = planner.build_revision_schedule([topic, unreviewed_topic])
+
+        self.assertEqual(len(schedule), 1)
+        self.assertEqual(
+            [review["review_date"] for review in schedule[0]["reviews"]],
+            ["2026-10-23", "2026-10-25", "2026-10-29"],
+        )
+        self.assertEqual(
+            [review["interval_days"] for review in schedule[0]["reviews"]],
+            [1, 3, 7],
+        )
+
+    async def test_mark_reviewed_records_the_current_timestamp(self):
+        topic = SimpleNamespace(id=3, last_reviewed_at=None)
+        db = MagicMock()
+        db.query.return_value.join.return_value.filter.return_value.first.return_value = topic
+
+        result = await planner.mark_topic_reviewed(
+            topic_id=3,
+            user=SimpleNamespace(id=4),  # type: ignore[arg-type]
+            db=db,  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(result["topic_id"], 3)
+        self.assertIsNotNone(topic.last_reviewed_at)
+        self.assertIsNotNone(topic.last_reviewed_at.tzinfo)
+        db.commit.assert_called_once()
+
     def test_plan_generation_without_pending_topics_does_not_replace_active_plan(self):
         db = MagicMock()
         db.query.return_value.join.return_value.filter.return_value.order_by.return_value.all.return_value = []
@@ -1945,6 +1984,58 @@ class UploadIndexingTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 413)
         self.assertEqual(raised.exception.detail, "Material file must be 5 MB or smaller.")
+
+
+class MaterialPreviewTests(unittest.IsolatedAsyncioTestCase):
+    async def test_document_preview_returns_owner_scoped_extracted_text(self):
+        material = SimpleNamespace(
+            id=5,
+            owner_id=4,
+            file_path=str(Path("uploads") / "4_lecture-notes.docx"),
+            title="Lecture notes",
+            content="Readable material text",
+        )
+
+        class FakeDB:
+            def query(self, model):
+                return FakeQuery([material])
+
+        result = await materials.preview_material(
+            material_id=5,
+            user=SimpleNamespace(id=4),  # type: ignore[arg-type]
+            db=FakeDB(),  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(result["filename"], "lecture-notes.docx")
+        self.assertEqual(result["content"], "Readable material text")
+
+        with self.assertRaises(HTTPException) as raised:
+            await materials.preview_material(
+                material_id=5,
+                user=SimpleNamespace(id=9),  # type: ignore[arg-type]
+                db=FakeDB(),  # type: ignore[arg-type]
+            )
+        self.assertEqual(raised.exception.status_code, 404)
+
+    async def test_pdf_file_response_is_inline_and_owner_scoped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            file_path = Path(directory) / "lecture.pdf"
+            file_path.write_bytes(b"%PDF-1.4 test")
+            material = SimpleNamespace(id=5, owner_id=4, file_path=str(file_path))
+
+            class FakeDB:
+                def query(self, model):
+                    return FakeQuery([material])
+
+            response = await materials.get_material_file(
+                material_id=5,
+                user=SimpleNamespace(id=4),  # type: ignore[arg-type]
+                db=FakeDB(),  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(response.media_type, "application/pdf")
+        self.assertIn("inline", response.headers["content-disposition"])
+        self.assertEqual(response.headers["x-content-type-options"], "nosniff")
 
 
 class EventRsvpStatisticsTests(unittest.TestCase):

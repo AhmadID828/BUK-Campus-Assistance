@@ -140,7 +140,9 @@ notification table, and `backend/migrations/006_add_auth_rate_limits.sql`
 before deploying database-backed authentication rate limits. Apply
 `backend/migrations/007_require_new_admin_password_setup.sql` before deploying
 the required first-login password setup for newly created administrators. The
-notification bell shows unread counts and supports marking individual
+`backend/migrations/008_add_study_topic_review_tracking.sql` migration adds
+study-topic review timestamps for the planner's 1-, 3-, and 7-day revision
+schedule. The notification bell shows unread counts and supports marking individual
 notifications or all notifications as read.
 
 ## Accounts and access

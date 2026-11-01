@@ -12,7 +12,9 @@ import {
   BookOpen,
   Brain,
   CheckCircle,
+  Eye,
   FileText,
+  Loader2,
   MessageCircle,
   Plus,
   Search,
@@ -38,6 +40,21 @@ const MaterialsPage = () => {
   const [search, setSearch] = useState("");
   const [summarizingId, setSummarizingId] = useState(null);
   const [summaryResult, setSummaryResult] = useState(null);
+  const [materialPreview, setMaterialPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const previewRequest = useRef(null);
+  const previewObjectUrl = useRef(null);
+
+  useEffect(
+    () => () => {
+      previewRequest.current?.abort();
+      if (previewObjectUrl.current) {
+        URL.revokeObjectURL(previewObjectUrl.current);
+      }
+    },
+    [],
+  );
   const [summaryProvider, setSummaryProvider] = useState("groq");
   const [file, setFile] = useState(null);
   const [fileInputKey, setFileInputKey] = useState(0);
@@ -280,6 +297,85 @@ const MaterialsPage = () => {
     }
   };
 
+  const handleClosePreview = () => {
+    previewRequest.current?.abort();
+    previewRequest.current = null;
+    if (previewObjectUrl.current) {
+      URL.revokeObjectURL(previewObjectUrl.current);
+      previewObjectUrl.current = null;
+    }
+    setMaterialPreview(null);
+    setPreviewError("");
+    setPreviewLoading(false);
+  };
+
+  const handlePreview = async (material) => {
+    if (!guard("Material Preview")) return;
+    previewRequest.current?.abort();
+    if (previewObjectUrl.current) {
+      URL.revokeObjectURL(previewObjectUrl.current);
+      previewObjectUrl.current = null;
+    }
+    const controller = new AbortController();
+    previewRequest.current = controller;
+    setMaterialPreview({ ...material, content: "", url: "" });
+    setPreviewError("");
+    setPreviewLoading(true);
+
+    try {
+      const filename = material.file_name || "";
+      const isPdf = filename.toLowerCase().endsWith(".pdf");
+      const response = await fetch(
+        isPdf
+          ? `${API_BASE_URL}/materials/${material.id}/file`
+          : `${API_BASE_URL}/materials/${material.id}/preview`,
+        {
+          headers: { Authorization: "Bearer " + token },
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || "Could not open this study material.");
+      }
+
+      if (isPdf) {
+        const objectUrl = URL.createObjectURL(await response.blob());
+        if (controller.signal.aborted) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        previewObjectUrl.current = objectUrl;
+        setMaterialPreview({
+          ...material,
+          filename,
+          url: objectUrl,
+          content: "",
+        });
+      } else {
+        const data = await response.json();
+        if (controller.signal.aborted) return;
+        setMaterialPreview({
+          ...material,
+          filename: data.filename || filename,
+          content: data.content || "",
+          url: "",
+        });
+      }
+    } catch (previewFailure) {
+      if (previewFailure.name !== "AbortError") {
+        setPreviewError(
+          previewFailure.message || "Could not open this study material.",
+        );
+      }
+    } finally {
+      if (previewRequest.current === controller) {
+        previewRequest.current = null;
+        setPreviewLoading(false);
+      }
+    }
+  };
+
   const searchTerm = search.trim().toLowerCase();
   const filteredMaterials = materials.filter(
     (material) =>
@@ -318,6 +414,74 @@ const MaterialsPage = () => {
           else if (materialToDelete) handleDeleteMaterial(materialToDelete);
         }}
       />
+      {materialPreview && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-3 sm:p-5"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) handleClosePreview();
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="material-preview-title"
+            className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-blue-100 px-4 py-3 dark:border-slate-700 sm:px-6 sm:py-4">
+              <div className="min-w-0">
+                <h2
+                  id="material-preview-title"
+                  className="truncate text-lg font-bold text-slate-900 dark:text-white"
+                >
+                  {materialPreview.title}
+                </h2>
+                <p className="mt-0.5 truncate text-sm text-slate-500 dark:text-slate-400">
+                  {materialPreview.filename || "Uploaded study material"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleClosePreview}
+                aria-label="Close material preview"
+                className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
+              {previewLoading ? (
+                <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-slate-500">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  Opening material...
+                </div>
+              ) : previewError ? (
+                <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                  {previewError}
+                </p>
+              ) : materialPreview.url ? (
+                <iframe
+                  title={`PDF preview: ${materialPreview.title}`}
+                  src={materialPreview.url}
+                  className="h-[72dvh] min-h-80 w-full rounded-lg border border-slate-200 dark:border-slate-700"
+                />
+              ) : materialPreview.content ? (
+                <div>
+                  <p className="mb-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                    Text extracted from the uploaded document. Original page and slide formatting is not included in this preview.
+                  </p>
+                  <pre className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-7 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                    {materialPreview.content}
+                  </pre>
+                </div>
+              ) : (
+                <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  This material has no previewable content.
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
       <PageHeader
         title="Study Materials"
         subtitle="Upload, manage and summarise your lecture notes"
@@ -671,7 +835,16 @@ const MaterialsPage = () => {
                   </p>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => handlePreview(material)}
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-indigo-50 px-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-indigo-900/25 dark:text-indigo-300 dark:hover:bg-indigo-900/45 sm:text-sm"
+                  aria-label={`View ${material.title}`}
+                >
+                  <Eye className="h-4 w-4 shrink-0" />
+                  <span>View</span>
+                </button>
                 <button
                   type="button"
                   onClick={() =>

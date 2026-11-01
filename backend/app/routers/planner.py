@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 import os
@@ -18,6 +18,34 @@ from app.utils.email import send_email
 
 router = APIRouter(prefix="/planner", tags=["Adaptive Study Planner"])
 logger = logging.getLogger(__name__)
+REVISION_INTERVALS = (1, 3, 7)
+
+
+def build_revision_schedule(topics: list[StudyTopic]) -> list[dict]:
+    schedule = []
+    for topic in topics:
+        last_reviewed_at = topic.last_reviewed_at
+        if last_reviewed_at is None:
+            continue
+
+        reviewed_date = last_reviewed_at.date()
+        schedule.append(
+            {
+                "topic_id": topic.id,
+                "material_id": topic.material_id,
+                "topic": topic.title,
+                "course": topic.course.course_code if topic.course else "General",
+                "last_reviewed_at": last_reviewed_at.isoformat(),
+                "reviews": [
+                    {
+                        "interval_days": interval,
+                        "review_date": str(reviewed_date + timedelta(days=interval)),
+                    }
+                    for interval in REVISION_INTERVALS
+                ],
+            }
+        )
+    return schedule
 
 
 def adaptive_priority(priority: int | None, quiz_score: float | None) -> int:
@@ -552,6 +580,50 @@ async def update_study_topic(
 
     db.commit()
     return {"message": "Study topic updated successfully"}
+
+
+@router.post("/topics/{topic_id}/review")
+async def mark_topic_reviewed(
+    topic_id: int,
+    user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
+):
+    topic = (
+        db.query(StudyTopic)
+        .join(Course)
+        .filter(StudyTopic.id == topic_id, Course.user_id == user.id)
+        .first()
+    )
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    topic.last_reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {
+        "message": "Topic review recorded successfully",
+        "topic_id": topic.id,
+        "last_reviewed_at": topic.last_reviewed_at.isoformat(),
+    }
+
+
+@router.get("/revision-schedule")
+async def get_revision_schedule(
+    user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
+):
+    topics = (
+        db.query(StudyTopic)
+        .join(Course)
+        .filter(Course.user_id == user.id, StudyTopic.last_reviewed_at.is_not(None))
+        .order_by(StudyTopic.last_reviewed_at, StudyTopic.id)
+        .all()
+    )
+    return {
+        "as_of": str(date.today()),
+        "intervals": list(REVISION_INTERVALS),
+        "schedule": build_revision_schedule(topics),
+    }
+
 
 # ========== GENERATE ADAPTIVE PLAN ==========
 @router.post("/generate")

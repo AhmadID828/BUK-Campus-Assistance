@@ -29,6 +29,7 @@ class StudyTopic(Base):
     priority = Column(Integer, default=2)                 # 1 = High, 2 = Medium, 3 = Low
     is_completed = Column(Boolean, default=False)
     estimated_hours = Column(Float, default=2.0)
+    last_reviewed_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     course = relationship("Course", back_populates="topics")

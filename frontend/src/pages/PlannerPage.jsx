@@ -12,15 +12,114 @@ import {
   CalendarClock,
   CheckCircle2,
   BookOpen,
+  Eye,
   Loader2,
   Sparkles,
   Trash2,
 } from "lucide-react";
 
+function formatPlannerDate(value) {
+  if (!value) return "Date to be scheduled";
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+}
+
+const RevisionSchedule = ({
+  schedule,
+  asOf,
+  loading,
+  reviewingTopicId,
+  onMarkReviewed,
+}) => (
+  <section className="mb-6 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <div className="flex items-start gap-3">
+      <span className="rounded-xl bg-indigo-100 p-2.5 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
+        <CalendarClock className="h-5 w-5" />
+      </span>
+      <div>
+        <h2 className="font-semibold text-gray-800 dark:text-white">
+          Spaced revision schedule
+        </h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+          Each review is scheduled 1, 3, and 7 days after you mark a topic reviewed.
+        </p>
+      </div>
+    </div>
+
+    {loading ? (
+      <div className="flex h-20 items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600" size={24} />
+      </div>
+    ) : schedule.length === 0 ? (
+      <p className="mt-4 rounded-xl bg-gray-50 px-4 py-5 text-center text-sm text-gray-500 dark:bg-gray-700/40 dark:text-gray-300">
+        Mark a topic reviewed to create its first revision schedule.
+      </p>
+    ) : (
+      <ul className="mt-4 space-y-3">
+        {schedule.map((item) => (
+          <li
+            key={item.topic_id}
+            className="flex flex-col gap-3 rounded-xl border border-gray-100 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0">
+              <p className="break-words font-semibold text-gray-800 dark:text-white">
+                {item.topic}
+              </p>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-300">
+                {item.course} · Last reviewed{" "}
+                {formatPlannerDate(item.last_reviewed_at.slice(0, 10))}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {item.reviews.map((review) => {
+                  const due = review.review_date <= asOf;
+                  return (
+                    <span
+                      key={review.interval_days}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        due
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                          : "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
+                      }`}
+                    >
+                      {due ? "Due" : `${review.interval_days}-day review`}:{" "}
+                      {formatPlannerDate(review.review_date)}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onMarkReviewed(item.topic_id)}
+              disabled={reviewingTopicId === item.topic_id}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60"
+            >
+              {reviewingTopicId === item.topic_id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+              {reviewingTopicId === item.topic_id ? "Saving..." : "Mark reviewed"}
+            </button>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+);
+
 const PlannerSchedule = ({
   plan,
   loading,
   onUpdateTopic,
+  onMarkReviewed,
+  reviewingTopicId,
   onCompleteTopic,
   onRemoveTopic,
   onDeletePlan,
@@ -195,6 +294,18 @@ const PlannerSchedule = ({
                         <option value={3}>Low priority</option>
                       </select>
                     )}
+                    {item.topic_id && (
+                      <button
+                        type="button"
+                        onClick={() => onMarkReviewed(item.topic_id)}
+                        disabled={reviewingTopicId === item.topic_id}
+                        className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-60 dark:border-indigo-800 dark:bg-gray-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
+                      >
+                        {reviewingTopicId === item.topic_id
+                          ? "Saving..."
+                          : "Mark reviewed"}
+                      </button>
+                    )}
                     {item.completed ? (
                       <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
                         Completed
@@ -238,6 +349,8 @@ const PlannerPage = () => {
 
   const [plan, setPlan] = useState(null);
   const [progress, setProgress] = useState(null);
+  const [revisionSchedule, setRevisionSchedule] = useState([]);
+  const [revisionScheduleDate, setRevisionScheduleDate] = useState("");
   const [reminders, setReminders] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -250,6 +363,7 @@ const PlannerPage = () => {
   const [topicHours, setTopicHours] = useState("2");
   const [topicPriority, setTopicPriority] = useState("2");
   const [savingTopic, setSavingTopic] = useState(false);
+  const [reviewingTopicId, setReviewingTopicId] = useState(null);
   const [deletingCourseId, setDeletingCourseId] = useState(null);
   const [deletingTopicId, setDeletingTopicId] = useState(null);
   const [deletingPlan, setDeletingPlan] = useState(false);
@@ -272,7 +386,7 @@ const PlannerPage = () => {
     }
 
     try {
-      const [planRes, progressRes, reminderRes, coursesRes, materialsRes] = await Promise.all([
+      const [planRes, progressRes, reminderRes, coursesRes, materialsRes, revisionScheduleRes] = await Promise.all([
         fetch(`${API_BASE_URL}/planner/active`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -288,11 +402,15 @@ const PlannerPage = () => {
         fetch(`${API_BASE_URL}/materials/`, {
           headers: { Authorization: "Bearer " + token },
         }),
+        fetch(`${API_BASE_URL}/planner/revision-schedule`, {
+          headers: { Authorization: "Bearer " + token },
+        }),
       ]);
 
       const responses = [
         ["planner progress", progressRes],
         ["planner reminders", reminderRes],
+        ["revision schedule", revisionScheduleRes],
       ];
       for (const [name, response] of responses) {
         if (!response.ok) {
@@ -313,6 +431,9 @@ const PlannerPage = () => {
       setReminders(await reminderRes.json());
       setCourses((await coursesRes.json()).courses || []);
       setMaterials((await materialsRes.json()).materials || []);
+      const revisionData = await revisionScheduleRes.json();
+      setRevisionSchedule(revisionData.schedule || []);
+      setRevisionScheduleDate(revisionData.as_of || "");
       setError("");
     } catch (err) {
       if (!silent) setError(err?.message || "Failed to load planner data");
@@ -492,6 +613,32 @@ const PlannerPage = () => {
     }
   };
 
+  const handleMarkReviewed = async (topicId) => {
+    if (!guard("Record Topic Review")) return;
+    setReviewingTopicId(topicId);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/planner/topics/${topicId}/review`,
+        {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to record topic review");
+      }
+      setSuccess("Review recorded. Your 1-, 3-, and 7-day schedule has been updated.");
+      await fetchAll({ silent: true });
+    } catch (err) {
+      setError(err?.message || "Failed to record topic review");
+    } finally {
+      setReviewingTopicId(null);
+    }
+  };
+
   const handleRemoveTopic = async (topicId) => {
     if (!guard("Remove Planner Topic")) return;
     setDeletingTopicId(topicId);
@@ -638,6 +785,7 @@ const PlannerPage = () => {
       <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
         Add materials as study topics. Plans balance study time across days, schedule toward
         course exam dates, and use your latest quiz scores to prioritize topics that need more review.
+        Set your own topic priority as well; the planner keeps your rating separate from its quiz-based adjustment.
       </div>
 
       {error && (
@@ -656,9 +804,19 @@ const PlannerPage = () => {
         plan={plan}
         loading={loading}
         onUpdateTopic={handleUpdateTopic}
+        onMarkReviewed={handleMarkReviewed}
+        reviewingTopicId={reviewingTopicId}
         onCompleteTopic={handleCompleteTopic}
         onRemoveTopic={(topic) => setDeleteTarget({ type: "topic", topic })}
         onDeletePlan={() => setDeleteTarget({ type: "plan" })}
+      />
+
+      <RevisionSchedule
+        schedule={revisionSchedule}
+        asOf={revisionScheduleDate}
+        loading={loading}
+        reviewingTopicId={reviewingTopicId}
+        onMarkReviewed={handleMarkReviewed}
       />
 
       {progress && (
