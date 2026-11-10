@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db #type: ignore
 from app.models.quiz import Quiz, QuizAttempt
@@ -10,7 +10,6 @@ from app.models.user import User
 from app.utils.notifications import create_notification
 from app.ai.llm_service import OLLAMA_QUIZ_MODEL, generate_answer
 from app.utils.dependencies import require_approved_user
-from jose import jwt, JWTError
 import os
 import json
 import logging

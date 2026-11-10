@@ -63,6 +63,7 @@ async function getLocationErrorMessage(error) {
   );
 }
 
+// Keep the best GPS fix during the wait; use a bounded-accuracy fix if GPS is slow.
 function getAccuratePosition() {
   return new Promise((resolve, reject) => {
     if (!window.isSecureContext) {
@@ -144,7 +145,7 @@ function formatAccuracy(accuracy) {
     : `±${Math.round(accuracy)} m`;
 }
 
-// Restore Leaflet's default marker assets for Vite builds.
+// Leaflet's marker assets need explicit imports for Vite production builds.
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -152,6 +153,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+// These map-aware components bridge React state to Leaflet's map instance.
 function ChangeView({ location }) {
   const map = useMap();
   const latitude = Number(location?.latitude);
@@ -263,6 +265,7 @@ function hasValidCoordinates(location) {
   );
 }
 
+// Walking directions come from OSRM; translate its maneuver data into readable steps.
 function getStepInstruction(step) {
   const maneuver = step.maneuver || {};
   const modifier = maneuver.modifier?.replace("-", " ");
@@ -336,6 +339,7 @@ function scoreWalkingRoute(route, shortestDistance) {
   );
 }
 
+// Prefer named, continuous roads while limiting how much longer the route can be.
 function choosePreferredWalkingRoute(routes) {
   const candidates = routes.filter(
     (route) => route?.geometry && route.legs?.some((leg) => leg.steps?.length),
@@ -378,6 +382,7 @@ function RoutingControl({ from, to, onError, onRoute }) {
   useEffect(() => {
     if (!from || !to) return;
 
+    // Cancel stale requests and remove their route line when the route changes.
     const controller = new AbortController();
     let routeLine;
     let timedOut = false;
@@ -489,6 +494,7 @@ function CampusMap({
     setFollowing(false);
   }, []);
 
+  // A new destination invalidates any route and navigation for the old one.
   // The selected destination is controlled by MapPage; synchronize map-local route state when it changes.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -662,6 +668,7 @@ function CampusMap({
     );
   };
 
+  // Approximate fixes move the marker; only precise fixes can advance directions.
   useEffect(() => {
     if (!following || manualOrigin || !navigator.geolocation) return;
 
@@ -788,6 +795,7 @@ function CampusMap({
   return (
     <section className="app-card">
       <div className="panel-card">
+        {/* Route status and selected-destination actions. */}
         {message && (
           <div
             role="status"
@@ -848,6 +856,7 @@ function CampusMap({
           </div>
         )}
 
+        {/* Route steps and map layers share the available space on wider screens. */}
         <div
           className={
             routeDetails ? "grid grid-cols-1 gap-4 lg:grid-cols-3" : ""
@@ -1005,6 +1014,7 @@ function CampusMap({
                 </button>
               </div>
             )}
+            {/* Map children render in layer order: controls, places, position, then route. */}
             <MapContainer
               center={BUK_CENTER}
               zoom={DEFAULT_ZOOM}

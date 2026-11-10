@@ -22,6 +22,7 @@ const ProtectedRoute = ({
     return <Navigate to="/login" replace />;
   }
 
+  // Admin access does not imply student approval; each route declares its own gate.
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }

@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useMaterialUpload } from "../context/MaterialUploadContext";
@@ -43,6 +42,7 @@ const MaterialsPage = () => {
   const [materialPreview, setMaterialPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
+  // Abort stale previews and revoke temporary PDF URLs when the page unmounts.
   const previewRequest = useRef(null);
   const previewObjectUrl = useRef(null);
 
@@ -69,7 +69,7 @@ const MaterialsPage = () => {
   const [deletingMaterialId, setDeletingMaterialId] = useState(null);
   const [materialToDelete, setMaterialToDelete] = useState(null);
   const fetchingRef = useRef(false);
-  const fetchQueuedRef = useRef(false);
+  const [refreshQueued, setRefreshQueued] = useState(false);
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -84,10 +84,11 @@ const MaterialsPage = () => {
     setFile(selectedFile);
   };
 
-  const fetchMaterials = async ({ silent = false } = {}) => {
+  const fetchMaterials = useCallback(async ({ silent = false } = {}) => {
     if (!token) return;
     if (fetchingRef.current) {
-      fetchQueuedRef.current = true;
+      // Collapse overlapping focus, polling, and upload refreshes into one follow-up request.
+      setRefreshQueued(true);
       return;
     }
 
@@ -122,15 +123,22 @@ const MaterialsPage = () => {
     } finally {
       fetchingRef.current = false;
       if (!silent) setLoading(false);
-      if (fetchQueuedRef.current) {
-        fetchQueuedRef.current = false;
-        window.setTimeout(() => void fetchMaterials({ silent: true }), 0);
-      }
     }
-  };
+  }, [token]);
 
   useEffect(() => {
-    void fetchMaterials();
+    if (!refreshQueued) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setRefreshQueued(false);
+      void fetchMaterials({ silent: true });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchMaterials, refreshQueued]);
+
+  useEffect(() => {
+    const initialFetchTimeout = window.setTimeout(() => {
+      void fetchMaterials();
+    }, 0);
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") {
         void fetchMaterials({ silent: true });
@@ -140,11 +148,12 @@ const MaterialsPage = () => {
     window.addEventListener("focus", refreshIfVisible);
     document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
+      window.clearTimeout(initialFetchTimeout);
       window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshIfVisible);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [token, uploadRevision]);
+  }, [fetchMaterials, uploadRevision]);
 
   const handleUpload = (event) => {
     event.preventDefault();

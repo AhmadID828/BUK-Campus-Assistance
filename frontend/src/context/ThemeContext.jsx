@@ -27,6 +27,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    // A system preference should stay in sync when the OS theme changes.
     const applyTheme = () => {
       const resolvedTheme = theme === "system" ? getSystemTheme() : theme;
       setResolvedTheme(resolvedTheme);

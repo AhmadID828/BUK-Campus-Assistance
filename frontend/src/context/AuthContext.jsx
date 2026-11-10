@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -65,7 +64,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("access_token", data.access_token);
       setToken(data.access_token);
       return data.access_token;
-    } catch (error) {
+    } catch {
       clearSession();
       toast.error("We couldn't refresh your session. Please sign in again.");
       return null;
@@ -89,6 +88,7 @@ export const AuthProvider = ({ children }) => {
         headers: requestHeaders,
       });
 
+      // Refresh once after an expired access token, then retry with the new token.
       if (response.status === 401) {
         const refreshedToken = await refreshAccessToken();
         if (!refreshedToken) {
@@ -141,10 +141,11 @@ export const AuthProvider = ({ children }) => {
         }
 
         const currentUser = await profileResponse.json();
+        // The server profile is authoritative; stored user data is only a startup placeholder.
         localStorage.setItem("user", JSON.stringify(currentUser));
         setToken(activeToken);
         setUser(currentUser);
-      } catch (error) {
+      } catch {
         clearSession();
         toast.error("Your saved session was invalid. Please sign in again.");
       } finally {

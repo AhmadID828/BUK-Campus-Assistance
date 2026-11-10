@@ -48,6 +48,7 @@ export function MaterialUploadProvider({ children }) {
     formData.append("title", title.trim() || file.name);
     formData.append("course_id", courseId);
 
+    // Keep the request independent of the upload form so users can navigate while it runs.
     fetch(`${API_BASE_URL}/materials/upload`, {
       method: "POST",
       headers: { Authorization: "Bearer " + token },

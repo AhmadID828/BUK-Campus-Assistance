@@ -10,6 +10,7 @@ from app.config import JWT_SECRET_KEY
 
 
 def make_rate_limit_key(scope: str, identity: str) -> str:
+    # Hash identifiers so rate-limit storage does not retain raw email/IP values.
     value = f"{scope}:{identity}".encode("utf-8")
     return hmac.new(JWT_SECRET_KEY.encode("utf-8"), value, hashlib.sha256).hexdigest()
 
@@ -31,6 +32,7 @@ def enforce_rate_limit(
         {"cutoff": retention_cutoff},
     )
 
+    # One atomic upsert prevents concurrent requests from bypassing the limit.
     result = db.execute(
         text(
             """

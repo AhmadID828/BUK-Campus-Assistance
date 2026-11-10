@@ -375,6 +375,7 @@ const PlannerPage = () => {
   const fetchAll = async ({ silent = false } = {}) => {
     if (!token) return;
     if (refreshInFlight.current) {
+      // A single queued refresh keeps polling and user-triggered refreshes from racing.
       refreshQueued.current = true;
       return;
     }

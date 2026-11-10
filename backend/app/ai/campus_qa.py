@@ -124,6 +124,7 @@ def answer_campus_question(
     model: str | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Answer campus questions only with active, admin-managed database records."""
+    # Campus questions deliberately bypass generative answers to keep facts database-grounded.
     del provider, model
 
     question = question.strip()

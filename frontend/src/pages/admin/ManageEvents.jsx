@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable no-unused-vars */
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { API_BASE_URL } from "../../config";
@@ -13,8 +12,6 @@ import {
   Search,
   X,
   MapPin,
-  Clock,
-  Star,
 } from "lucide-react";
 
 const ManageEvents = () => {

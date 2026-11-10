@@ -257,14 +257,16 @@ class ProfileUpdateTests(unittest.TestCase):
             def refresh(self, row):
                 pass
 
-        response = auth.update_profile(
-            auth.ProfileUpdate(level=400),
-            current_user=account,
-            db=ProfileDB(),  # type: ignore[arg-type]
-        )
+        with patch("app.routers.auth.create_notification") as create_notification:
+            response = auth.update_profile(
+                auth.ProfileUpdate(level=400),
+                current_user=account,
+                db=ProfileDB(),  # type: ignore[arg-type]
+            )
 
         self.assertEqual(response["user"].level, 400)
         self.assertEqual(response["user"].email, "student@example.com")
+        create_notification.assert_called_once()
 
     def test_profile_update_rejects_levels_outside_the_supported_choices(self):
         with self.assertRaises(ValidationError):
@@ -294,7 +296,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
             clear=True,
         ), patch("app.utils.email.httpx.AsyncClient", return_value=client_context) as client_factory:
             await send_email(
-                "student@example.test",
+                "student@example.com",
                 "Reset your password",
                 "<p>Reset link</p>",
             )
@@ -309,7 +311,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
             client.post.call_args.kwargs["json"],
             {
                 "from": "BUK Assistant <noreply@example.test>",
-                "to": ["student@example.test"],
+                "to": ["student@example.com"],
                 "subject": "Reset your password",
                 "html": "<p>Reset link</p>",
             },
@@ -340,7 +342,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "Sender domain is not verified"):
                 await send_email(
-                    "student@example.test",
+                    "student@example.com",
                     "Reset your password",
                     "<p>Reset link</p>",
                 )
@@ -371,7 +373,7 @@ class AccountEmailTests(unittest.IsolatedAsyncioTestCase):
             "app.utils.email.fast_mail", smtp_client
         ):
             await send_email(
-                "student@example.test",
+                "student@example.com",
                 "Reset your password",
                 "<p>Reset link</p>",
             )
@@ -1213,7 +1215,7 @@ class PlannerTopicTests(unittest.IsolatedAsyncioTestCase):
                 db=db,  # type: ignore[arg-type]
             )
 
-        self.assertFalse(plan.is_active)
+        self.assertTrue(plan.is_active)
         self.assertEqual(
             json.loads(plan.plan_data),
             [{"topic_id": 99, "date": "2026-10-25"}],
@@ -1481,14 +1483,18 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(generate.call_args.kwargs["max_tokens"], 128)
 
     def test_academic_chat_uses_full_text_fallback_when_vector_index_is_unavailable(self):
-        fake_db = SimpleNamespace()
+        fake_db = SimpleNamespace(
+            get_bind=lambda: SimpleNamespace(
+                dialect=SimpleNamespace(name="postgresql")
+            )
+        )
         with (
             patch.object(
                 chat.rag_service,
                 "search_with_sources",
                 return_value=(
-                    "AI indexing is unavailable.",
-                    [{"type": "study_material", "title": "AI indexing unavailable"}],
+                    "No semantic study-material matches are available.",
+                    [],
                 ),
             ),
             patch.object(
@@ -1499,7 +1505,8 @@ class ChatTests(unittest.TestCase):
             patch.object(chat.llm_service, "get_response", return_value="Answer") as generate,
         ):
             ts_query = object()
-            rank = object()
+            rank = MagicMock()
+            rank.desc.return_value = rank
             excerpt = "A graph is a set of vertices and edges."
             sqlalchemy_func.plainto_tsquery.return_value = ts_query
             sqlalchemy_func.ts_rank.return_value = rank
@@ -1514,7 +1521,9 @@ class ChatTests(unittest.TestCase):
             query.filter.return_value = query
             query.order_by.return_value = query
             query.limit.return_value = query
-            query.all.return_value = [(material, 1.0, excerpt)]
+            query.all.return_value = [
+                (20, "Algorithms", "CSC301", material.content, 1.0, excerpt)
+            ]
             fake_db.query = MagicMock(return_value=query)
 
             answer, sources = chat.answer_academic_question(

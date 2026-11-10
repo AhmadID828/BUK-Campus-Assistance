@@ -16,12 +16,14 @@ const QuizPage = () => {
   const navigate = useNavigate();
   const { guard, showLockedModal, lockedFeatureName, closeModal } = useApprovalGuard();
 
+  const [courses, setCourses] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [savedQuizzes, setSavedQuizzes] = useState([]);
   const [selectedMaterial, setSelectedMaterial] = useState(
     () => String(location.state?.materialId ?? ""),
   );
+  const [selectedCourse, setSelectedCourse] = useState("");
   const [questionCount, setQuestionCount] = useState("3");
   const [provider, setProvider] = useState("groq");
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,9 @@ const QuizPage = () => {
   const fetchData = async () => {
     if (!token) return;
     try {
+      const courseResPromise = fetch(`${API_BASE_URL}/planner/courses`, {
+        headers: { Authorization: "Bearer " + token },
+      });
       const [matRes, attRes, quizRes] = await Promise.all([
         fetch(`${API_BASE_URL}/materials/?limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -50,15 +55,27 @@ const QuizPage = () => {
         }),
       ]);
 
-      if (!matRes.ok || !attRes.ok || !quizRes.ok) {
+      const courseRes = await courseResPromise;
+
+      if (!matRes.ok || !courseRes.ok || !attRes.ok || !quizRes.ok) {
         throw new Error("Unable to load quiz data. Please refresh or sign in again.");
       }
 
       const matData = await matRes.json();
+      const courseData = await courseRes.json();
       const attData = await attRes.json();
       const quizData = await quizRes.json();
 
-      setMaterials(matData.materials || matData || []);
+      const loadedMaterials = matData.materials || matData || [];
+      setMaterials(loadedMaterials);
+      setCourses(courseData.courses || []);
+      // Materials-page links can preselect a note; select its parent course too.
+      const currentMaterial = loadedMaterials.find(
+        (material) => String(material.id) === selectedMaterial,
+      );
+      if (currentMaterial) {
+        setSelectedCourse(String(currentMaterial.course_id ?? ""));
+      }
       setAttempts(attData.attempts || []);
       setSavedQuizzes(quizData.quizzes || []);
     } catch (err) {
@@ -383,7 +400,7 @@ const QuizPage = () => {
             <div>
               <h2 className="font-semibold text-gray-900 dark:text-white">Create a quiz from your notes</h2>
               <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
-                Choose a material, set the quiz length and AI provider, then generate.
+                Choose a registered course and its study material, set the quiz length and AI provider, then generate.
               </p>
             </div>
           </div>
@@ -405,19 +422,49 @@ const QuizPage = () => {
 
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-200 sm:col-span-2">
+            Registered course
+            <select
+              value={selectedCourse}
+              onChange={(event) => {
+                setSelectedCourse(event.target.value);
+                setSelectedMaterial("");
+              }}
+              disabled={courses.length === 0 || loading || generating}
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 disabled:opacity-60"
+            >
+              <option value="">
+                {loading ? "Loading registered courses..." : "Choose a registered course"}
+              </option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.course_code} — {course.course_title}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200 sm:col-span-2">
             Study material
             <select
               value={selectedMaterial}
               onChange={(event) => setSelectedMaterial(event.target.value)}
-              disabled={materials.length === 0 || generating}
+              disabled={!selectedCourse || materials.length === 0 || generating}
               className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 disabled:opacity-60"
             >
-              <option value="">Choose the notes for this quiz</option>
-              {materials.map((material) => (
-                <option key={material.id} value={material.id}>
-                  {material.title}{material.subject ? ` · ${material.subject}` : ""}
-                </option>
-              ))}
+              <option value="">
+                {selectedCourse
+                  ? "Choose study material for this course"
+                  : "Choose a course first"}
+              </option>
+              {materials
+                .filter(
+                  (material) => String(material.course_id) === selectedCourse,
+                )
+                .map((material) => (
+                  <option key={material.id} value={material.id}>
+                    {material.title}
+                  </option>
+                ))}
             </select>
           </label>
 
@@ -451,10 +498,35 @@ const QuizPage = () => {
             </select>
           </label>
 
-          {materials.length === 0 && !loading ? (
+          {courses.length === 0 && !loading ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-600 dark:bg-gray-700/40 dark:text-gray-300 sm:col-span-2">
+              <p className="font-medium text-gray-800 dark:text-white">No registered courses yet</p>
+              <p className="mt-1">Register a course and upload its study materials before creating a quiz.</p>
+              <Link
+                to="/materials"
+                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+              >
+                Go to Study Materials
+              </Link>
+            </div>
+          ) : materials.length === 0 && !loading ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-600 dark:bg-gray-700/40 dark:text-gray-300 sm:col-span-2">
               <p className="font-medium text-gray-800 dark:text-white">No study materials yet</p>
-              <p className="mt-1">Upload lecture notes first. You can return here after upload; they will appear in the material list.</p>
+              <p className="mt-1">Upload lecture notes for a registered course first. They will appear in the material list.</p>
+              <Link
+                to="/materials"
+                className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+              >
+                Go to Study Materials
+              </Link>
+            </div>
+          ) : selectedCourse &&
+            !materials.some(
+              (material) => String(material.course_id) === selectedCourse,
+            ) ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-600 dark:bg-gray-700/40 dark:text-gray-300 sm:col-span-2">
+              <p className="font-medium text-gray-800 dark:text-white">No materials for this course yet</p>
+              <p className="mt-1">Upload study materials for this course, then return here to create a quiz.</p>
               <Link
                 to="/materials"
                 className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"

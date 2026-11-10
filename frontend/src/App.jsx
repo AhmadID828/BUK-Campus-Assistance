@@ -5,6 +5,7 @@ import { MaterialUploadProvider } from "./context/MaterialUploadContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+// Route-level lazy imports keep the initial bundle small and defer admin tools until needed.
 const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
 const StudentLayout = lazy(() => import("./layouts/StudentLayout"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));

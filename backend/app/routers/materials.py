@@ -3,7 +3,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
@@ -75,6 +74,7 @@ def upload_material(
     safe_filename = f"{user.id}_{os.path.basename(filename)}"
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
+    # Stream to disk and stop immediately when the configured upload cap is exceeded.
     uploaded_size = 0
     try:
         with open(file_path, "wb") as buffer:

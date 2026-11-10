@@ -137,6 +137,7 @@ def build_plan_items(
         proposed_date = placement["preferred_date"]
         deadline = placement["deadline"]
 
+        # Spread topics over the six-hour daily target, but never push past an exam deadline.
         if study_hours > 6:
             while scheduled_hours.get(proposed_date, 0) > 0:
                 if deadline and proposed_date >= deadline:
@@ -174,6 +175,7 @@ def build_plan_items(
 
 
 def get_latest_quiz_scores(db: Session, user_id: int) -> dict[int, float]:
+    # Ordered attempts let setdefault keep only the newest score for each material.
     attempts = (
         db.query(QuizAttempt, Quiz)
         .join(Quiz, Quiz.id == QuizAttempt.quiz_id)

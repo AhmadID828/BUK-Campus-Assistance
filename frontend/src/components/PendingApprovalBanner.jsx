@@ -1,6 +1,5 @@
-/* eslint-disable no-unused-vars */
 import { useState } from "react";
-import { AlertTriangle, Clock, X, CheckCircle, Mail, Moon, Sun } from "lucide-react";
+import { AlertTriangle, Clock, X, CheckCircle, Mail } from "lucide-react";
 
 const PendingApprovalBanner = ({ user }) => {
   const [isVisible, setIsVisible] = useState(true);

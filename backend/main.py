@@ -13,18 +13,18 @@ from app.database import engine
 from app.models.base import Base
 from app.ai.llm_service import llm_service
 
-# Import all models so tables are created
-from app.models.user import User
-from app.models.study_material import StudyMaterial
-from app.models.quiz import Quiz, QuizAttempt
-from app.models.planner import Course, StudyTopic, StudyPlan
-from app.models.event import Event, EventRSVP
-from app.models.campus_location import CampusLocation
-from app.models.emergency_contact import EmergencyContact
-from app.models.chat import ChatMessage, ChatSession
-from app.models.faq import FAQ
-from app.models.notification import Notification
-from app.models.auth_rate_limit import AuthRateLimit
+# Import models before create_all so SQLAlchemy registers every table.
+from app.models.user import User  # noqa: F401
+from app.models.study_material import StudyMaterial  # noqa: F401
+from app.models.quiz import Quiz, QuizAttempt  # noqa: F401
+from app.models.planner import Course, StudyTopic, StudyPlan  # noqa: F401
+from app.models.event import Event, EventRSVP  # noqa: F401
+from app.models.campus_location import CampusLocation  # noqa: F401
+from app.models.emergency_contact import EmergencyContact  # noqa: F401
+from app.models.chat import ChatMessage, ChatSession  # noqa: F401
+from app.models.faq import FAQ  # noqa: F401
+from app.models.notification import Notification  # noqa: F401
+from app.models.auth_rate_limit import AuthRateLimit  # noqa: F401
 
 # Routers
 from app.routers.auth import router as auth_router
@@ -52,6 +52,7 @@ class ChatRequest(BaseModel):
     message: str
 
 
+# Normalize the configured origins once; use local development origins only as a fallback.
 allowed_origins = [
     origin.strip().rstrip("/")
     for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
@@ -132,7 +133,7 @@ async def chat(payload: ChatRequest):
     return {"response": response}
 
 
-# Create missing tables without preventing the service from starting if the database is unavailable.
+# Keep the API available in degraded mode so health checks can report database outages.
 try:
     Base.metadata.create_all(bind=engine)
     app.state.db_ready = True

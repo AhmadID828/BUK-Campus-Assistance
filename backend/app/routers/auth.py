@@ -79,6 +79,7 @@ async def forgot_password(
     http_request: Request,
     db: Session = Depends(get_db),
 ):
+    # Use one generic response for known and unknown emails to avoid account enumeration.
     email = str(request.email).strip().lower()
     client_host = http_request.client.host if http_request.client else "unknown"
     bucket_key = make_rate_limit_key(

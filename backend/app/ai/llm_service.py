@@ -47,6 +47,7 @@ def _post_json(
         and url == "https://api.groq.com/openai/v1/chat/completions"
         and payload.get("response_format") == {"type": "json_object"}
     ):
+        # Some Groq models reject constrained JSON mode; retry with an explicit JSON-only prompt.
         try:
             error_payload = response.json().get("error")
             provider_message = (

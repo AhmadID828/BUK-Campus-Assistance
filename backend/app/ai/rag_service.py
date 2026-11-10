@@ -39,6 +39,7 @@ class RAGService:
         return self._embeddings
 
     def get_user_vectorstore(self, user_id: int) -> Chroma:
+        # Separate collections and directories prevent retrieval across students.
         user_path = CHROMA_PATH / f"user_{user_id}"
         user_path.mkdir(parents=True, exist_ok=True)
 

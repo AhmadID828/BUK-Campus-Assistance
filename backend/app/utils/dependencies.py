@@ -48,12 +48,14 @@ def get_current_admin(user: User = Depends(get_current_user)):
 
 
 def get_super_admin(user: User = Depends(get_current_admin)) -> User:
+    # Admin role grants general admin access; only this configured identity manages admins.
     if (user.email or "").strip().lower() != CHIEF_ADMIN_EMAIL:
         raise HTTPException(status_code=403, detail="Only the system administrator can manage administrator accounts")
     return user
 
 
 def require_approved_user(user: User = Depends(get_current_user)):
+    # Pending students can sign in and browse, but protected study features require approval.
     if user.role == "student" and not user.is_approved: # type: ignore
         raise HTTPException(
             status_code=403,

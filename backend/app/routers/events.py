@@ -66,7 +66,6 @@ async def get_events(
                 "start_time": e.start_time,
                 "end_time": e.end_time,
                 "organizer": e.organizer,
-                "organizer": e.organizer,
                 "is_featured": e.is_featured
             }
             for e in events
